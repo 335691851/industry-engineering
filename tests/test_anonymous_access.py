@@ -22,6 +22,15 @@ def test_proof_binds_path_and_rejects_unsigned(monkeypatch):
         cloud_guard.client_key(Request({**scope,'headers':[]}))
 
 
+def test_auth_provider_failures_are_classified():
+    import httpx
+    from server.cloud_app import auth_failure
+    limited=auth_failure(httpx.Response(429,json={'error_code':'over_request_rate_limit'},headers={'Retry-After':'30'}))
+    assert limited.status_code==429 and limited.headers['retry-after']=='30'
+    disabled=auth_failure(httpx.Response(400,json={'error_code':'anonymous_provider_disabled'}))
+    assert disabled.status_code==503 and b'ANONYMOUS_AUTH_DISABLED' in disabled.body
+
+
 def test_existing_session_is_reused_and_password_endpoint_removed(monkeypatch):
     monkeypatch.setenv('ENGINEERING_APP_ORIGIN','https://test.example')
     monkeypatch.setattr(cloud_guard,'client_key',lambda _: 'ip')

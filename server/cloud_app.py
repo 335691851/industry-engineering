@@ -42,6 +42,21 @@ def cookie(response, access, refresh):
     response.set_cookie('engineering_refresh', refresh, httponly=True, secure=True, samesite='strict', path='/api/auth', max_age=30*86400)
 
 
+def auth_failure(result):
+    try:
+        code = str(result.json().get('error_code', ''))
+    except (ValueError, TypeError, AttributeError):
+        code = ''
+    if result.status_code == 429 or code in ('over_request_rate_limit', 'over_email_send_rate_limit'):
+        return JSONResponse({'detail':'Supabase 暂时限制新建匿名会话，请稍后重试','code':'AUTH_RATE_LIMITED'},
+                            status_code=429,headers={'Retry-After':result.headers.get('Retry-After','60')})
+    if code in ('anonymous_provider_disabled','anonymous_sign_ins_disabled'):
+        return JSONResponse({'detail':'Supabase 尚未开启 Anonymous Sign-Ins','code':'ANONYMOUS_AUTH_DISABLED'},status_code=503)
+    if code in ('captcha_failed','captcha_verification_failed'):
+        return JSONResponse({'detail':'Supabase 要求完成机器人验证，当前无账密入口未配置 CAPTCHA','code':'AUTH_CAPTCHA_REQUIRED'},status_code=503)
+    return JSONResponse({'detail':'无法创建免账密工作区，请检查 Supabase Auth 匿名登录和限频配置','code':'ANONYMOUS_AUTH_FAILED'},status_code=503)
+
+
 class CloudApplication:
     def __init__(self, business): self.business = business
 
@@ -134,19 +149,22 @@ class CloudApplication:
             if existing and path.endswith('anonymous'):
                 return JSONResponse({'authenticated': True, 'id': existing['id']})
             refresh = request.cookies.get('engineering_refresh', '')
+            auth_headers=supabase_headers()
+            client_address=getattr(request.state,'engineering_client','')
+            if client_address: auth_headers['x-forwarded-for']=client_address
             async with httpx.AsyncClient(timeout=15) as client:
                 if refresh:
                     result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/token?grant_type=refresh_token',
-                                               headers=supabase_headers(), json={'refresh_token': refresh})
+                                               headers=auth_headers, json={'refresh_token': refresh})
                 elif path.endswith('anonymous'):
                     limited = await run_in_threadpool(cloud_guard.limit, 'signup', ip)
                     if limited: return limited
-                    result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/signup', headers=supabase_headers(), json={})
+                    result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/signup', headers=auth_headers, json={})
                 else:
                     return JSONResponse({'detail': '浏览器会话已过期'}, status_code=401)
             if not result.is_success:
                 # Never silently replace a lost identity and hide its engineering data.
-                return JSONResponse({'detail': '无法恢复浏览器工作区，请检查匿名登录配置或会话状态；已有数据不会删除'}, status_code=503)
+                return auth_failure(result)
             data = result.json()
             response = JSONResponse({'authenticated': True, 'id': data['user']['id']})
             cookie(response, data['access_token'], data['refresh_token'])

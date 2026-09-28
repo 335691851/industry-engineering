@@ -13,7 +13,7 @@ async function proxy(request) {
   }
   const secret=process.env.ENGINEERING_SERVICE_TOKEN || '';
   if(secret.length<32) return Response.json({detail:'platform 缺少服务端访问保护配置 ENGINEERING_SERVICE_TOKEN'}, {status:503});
-  const ip=request.headers.get('x-vercel-forwarded-for') || 'local';
+  const ip=(request.headers.get('x-vercel-forwarded-for') || '').split(',')[0].trim() || '127.0.0.1';
   const stamp=String(Math.floor(Date.now()/1000));
   const proof=createHmac('sha256',secret).update(`${stamp}\n${request.method}\n${incoming.pathname}\n${ip}`).digest('hex');
   headers.set('x-engineering-client',ip);

@@ -1,6 +1,7 @@
 """Shared Postgres admission limits; signed platform provenance, never browser IP claims."""
 import hashlib
 import hmac
+import ipaddress
 import os
 from .cloud_config import database_url
 import time
@@ -15,9 +16,14 @@ def client_key(request):
     proof = request.headers.get('x-engineering-proof', '')
     message = f'{stamp}\n{request.method}\n{request.url.path}\n{ip}'
     expected = hmac.new(secret.encode(), message.encode(), hashlib.sha256).hexdigest()
-    if len(secret) < 32 or not stamp.isdigit() or abs(time.time()-int(stamp)) > 60 or not ip or not hmac.compare_digest(proof, expected):
+    try:
+        address = str(ipaddress.ip_address(ip))
+    except ValueError:
+        address = ''
+    if len(secret) < 32 or not stamp.isdigit() or abs(time.time()-int(stamp)) > 60 or not address or not hmac.compare_digest(proof, expected):
         raise PermissionError('请通过平台入口访问，或检查三个项目的服务密钥是否一致')
-    return hmac.new(secret.encode(), ip.encode(), hashlib.sha256).hexdigest()
+    request.state.engineering_client = address
+    return hmac.new(secret.encode(), address.encode(), hashlib.sha256).hexdigest()
 
 
 def limit(kind, key):
