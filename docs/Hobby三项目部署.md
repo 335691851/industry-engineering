@@ -1,6 +1,6 @@
 # Vercel Hobby + Supabase：三个独立项目部署
 
-当前主仓库可以直接连接 GitHub。三个目录分别导入为三个 Vercel 项目；不使用 Services 绑定，也不需要 Cloudflare，也无需 ZIP。
+当前主仓库可以直接连接 GitHub。三个目录分别导入为三个 Vercel 项目；两个后端由各自的 `vercel.json` 声明容器 Service，不需要 Cloudflare，也无需 ZIP。
 
 ### 直接使用现有仓库（推荐）
 
@@ -14,7 +14,7 @@ python scripts/sync_hobby_projects.py --check
 
 将 `apps/`（含同步文件）、根目录源码、scripts、依赖锁文件、supabase、docs 和 `.github/workflows/verify.yml` 一并提交。Vercel 只需要读取对应 apps 项目目录。生成副本以根目录源码为准，不要直接编辑 apps 下的 server 副本。GitHub Actions 会检查副本是否同步，并构建 Linux 容器。
 
-以下部署顺序、环境变量和验收步骤适用于直接连接仓库；涉及部署包、frontend-source 和 manifest 的说明仅适用于此前生成的 ZIP，不是直接部署的前提。
+以下部署顺序、环境变量和验收步骤适用于直接连接仓库。仓库不再维护 ZIP 打包器或旧 Cloudflare 部署目录。
 
 ## 目录与顺序
 
@@ -112,11 +112,11 @@ python scripts/sync_hobby_projects.py --check
 
 ## 5. GitHub 自动检查
 
-部署包包含 `.github/workflows/verify.yml`：检查三项目配置、构建 Next.js、构建两个 Linux 镜像并运行原生组件 smoke test。应先查看 GitHub Actions 结果，再将 Vercel 部署提升为可用版本。Actions 消耗 GitHub 自身的构建额度。
+仓库的 `.github/workflows/verify.yml` 会检查三项目配置、构建前端和 Next.js、构建两个 Linux 镜像，并在工程镜像内运行原生组件 smoke test。应先查看 GitHub Actions 结果，再将 Vercel 部署提升为可用版本。Actions 消耗 GitHub 自身的构建额度。
 
 本地尚未执行 Docker/Linux 镜像构建及真实云端端到端验收，不能把静态检查与 Windows 测试当成这些验收已完成。
 
-本次本地验证：65 项 Python 回归、3 项平台 Node 测试、Postgres 迁移与 RLS 测试通过；Vite 与 Next.js 构建通过；构建后 Next.js 的 Workflow 实际调度、鉴权与分段恢复联调通过（后端桩，不消耗真实模型）。真实云端模型质量、容器内存占用、Linux 原生组件兼容性仍待部署后验收。
+测试数量会随代码变化，不在部署文档中固化。提交前按仓库 README 的验证命令执行；真实云端模型质量、容器内存占用、Linux 原生组件兼容性仍须在当前部署上验收。
 
 ## 6. 限制与更新
 
@@ -124,8 +124,8 @@ python scripts/sync_hobby_projects.py --check
 - Container Images 是 Beta，需要账号可使用该能力；本方案依赖它运行 Linux 原生组件。若控制台未开放，不能退化成 Edge Function 运行这些库。
 - DWG 导入按实际文件验证。LibreDWG 写出兼容性有限，当前可靠交付以 PDF/DXF 为主，详见 `DWG说明.md`。
 - 容器包含 OCR/OpenCascade，不等于所有复杂文件都能在 2 GB 内处理；不要并发提交大量原生任务。
-- `manifest.json` 是本次打包文件的校验清单。仓库不包含 `.env.local`、本地数据库、用户案例或模型密钥。
-- `frontend-source` 包含可编辑前端源码，部署网页来自 `apps/platform/public`。通常在主工程修改后重新运行 `npm run build`、`python scripts/package_hobby.py` 更新部署包。如果只修改解压后的仓库，在 frontend-source 执行 `npm ci`、`npm run build`，把生成的 dist 内容同步到 apps/platform/public 再提交。单独修改 frontend-source 不会自动更新已经构建的网页。
+- 仓库不包含 `.env.local`、本地数据库、用户案例或模型密钥。
+- 部署网页来自 `apps/platform/public`。只修改根前端源码不会自动更新部署副本；提交前必须执行 `npm run build` 和 `python scripts/sync_hobby_projects.py`。
 
 官方依据：https://vercel.com/docs/functions/container-images 、https://vercel.com/docs/functions/limitations 、https://vercel.com/docs/plans/hobby 、https://vercel.com/docs/cron-jobs/usage-and-pricing 。
 

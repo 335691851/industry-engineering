@@ -1,2 +1,0 @@
-SUPABASE_SECRET_KEY=replace-with-server-only-supabase-key
-ENGINEERING_COMPUTE_TOKEN=replace-with-random-at-least-32-character-token

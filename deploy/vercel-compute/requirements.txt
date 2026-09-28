@@ -1,2 +1,0 @@
-# This function uses the Python standard library only.
-# Native OCR/CAD dependencies intentionally belong to separate, validated runtimes.

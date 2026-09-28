@@ -54,7 +54,7 @@ flowchart TD
 | `supabase/migrations/` | 业务、调度、activity 表与行级权限 |
 | `tests/`、`scripts/` | 回归验证、案例评价、部署同步与检查 |
 
-修改后端应编辑根 `server/`，再运行 `python scripts/sync_hobby_projects.py`；前端修改先 `npm run build` 再同步。不要单独修改两个容器中的代码副本。`deploy/` 中保留旧部署实验，不是当前三项目架构入口。
+修改后端应编辑根 `server/`，再运行 `python scripts/sync_hobby_projects.py`；前端修改先 `npm run build` 再同步。不要单独修改两个容器中的代码副本。仓库只保留 `apps/` 下的当前三项目部署入口。
 
 ## 3. Agent 框架、模型和 Harness
 
@@ -454,8 +454,8 @@ platform 配置 ENGINEERING_BACKEND_URL 指向 agent-api，必要时设置 ENGIN
 - 架构与 Agent 当前实现：本文。
 - 部署目录、初始化和环境变量：[Hobby 三项目部署](docs/Hobby三项目部署.md)。
 - DWG 兼容性与开源替代：[开源 DWG 替代方案](docs/开源DWG替代方案.md)。
-- 工程质量演进背景：[工程质量升级与资源清单](docs/工程质量升级与资源清单.md)。
-- 旧 Agent 配置说明：[历史说明入口](docs/Agent配置与实现方案.md)，应以本文及当前代码为准。
+- 工程质量、识别链路和外部资源：[工程质量与资源](docs/工程质量与资源.md)。
+- CAD 编辑与文件处理：[CAD Studio 集成](docs/CAD-Studio集成.md)和[开源 DWG 替代方案](docs/开源DWG替代方案.md)。
 
 后续改动 Agent 工具、状态门、记忆、模型配置或云端预算时，应同步更新本文对应章节，避免再次用日期追加方式留下互相冲突的架构说明。
 
