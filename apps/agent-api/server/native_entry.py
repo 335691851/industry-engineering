@@ -12,6 +12,8 @@ from .cloud_context import owner_id, workspace
 
 app=FastAPI()
 
+REQUIRED_STORAGE=('SUPABASE_URL','SUPABASE_SECRET_KEY')
+
 async def supervised(body):
     import asyncio,sys,signal
     folder=Path(workspace.get())
@@ -79,7 +81,10 @@ def perform(body):
     return {'output':publish(target)}
 
 @app.get('/health')
-def health(): return {'service':'engineering','status':'ok'}
+def health():
+    missing=[name for name in REQUIRED_STORAGE if not os.getenv(name)]
+    return {'service':'engineering','status':'ok' if not missing else 'misconfigured',
+            'storage_configured':not missing,'missing':missing}
 
 @app.post('/execute')
 async def execute(request:Request):
@@ -93,15 +98,27 @@ async def execute(request:Request):
     if len(raw)>10000: return JSONResponse({'detail':'request too large'},status_code=413)
     body=json.loads(raw)
     if body.get('operation') not in OPERATIONS: return JSONResponse({'detail':'unknown operation'},status_code=400)
+    missing=[name for name in REQUIRED_STORAGE if not os.getenv(name)]
+    if missing:
+        return JSONResponse({'detail':'engineering 缺少私有文件存储配置：'+', '.join(missing),
+                             'code':'NATIVE_STORAGE_CONFIG_MISSING'},status_code=503)
     token=owner_id.set(user)
     with tempfile.TemporaryDirectory(prefix='native-') as directory:
         work=workspace.set(directory)
         try:
             return await supervised(body)
-        except Exception:
+        except Exception as exc:
             import logging
             logging.exception('Native operation failed: %s',body['operation'])
-            return JSONResponse({'detail':'工程文件处理失败'},status_code=422)
+            if isinstance(exc, FileNotFoundError):
+                code,detail='NATIVE_INPUT_NOT_FOUND','工程输入文件不存在或已过期'
+            elif isinstance(exc, KeyError) and exc.args and str(exc.args[0]).startswith('SUPABASE_'):
+                code,detail='NATIVE_STORAGE_CONFIG_MISSING','engineering 缺少 Supabase 存储环境变量'
+            elif '私有文件存储失败' in str(exc):
+                code,detail='NATIVE_STORAGE_ACCESS_FAILED','engineering 无法读写 Supabase 私有文件，请检查 URL、Secret Key 和 Storage Bucket'
+            else:
+                code,detail='NATIVE_OPERATION_FAILED','工程文件子进程失败，请查看 engineering Runtime Logs'
+            return JSONResponse({'detail':detail,'code':code,'reference':uuid.uuid4().hex[:12]},status_code=422)
         finally: workspace.reset(work); owner_id.reset(token)
 
 if __name__=='__main__':

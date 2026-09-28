@@ -34,6 +34,8 @@ def test_native_storage_rpc_and_tenant_isolation(monkeypatch,tmp_path):
     objects={}
     monkeypatch.setenv('ENGINEERING_SERVICE_TOKEN','a'*32)
     monkeypatch.setenv('ENGINEERING_NATIVE_URL','https://native.test')
+    monkeypatch.setenv('SUPABASE_URL','https://storage.test')
+    monkeypatch.setenv('SUPABASE_SECRET_KEY','test-secret')
     def storage(method,key,content=None):
         if method=='POST': objects[key]=content; return b''
         return objects[key]
@@ -60,6 +62,31 @@ def test_native_storage_rpc_and_tenant_isolation(monkeypatch,tmp_path):
         response=client.post('/execute',headers=other,json={'operation':'test_file','input':'object://'+key})
         assert response.status_code==422
     finally: workspace.reset(work); owner_id.reset(who)
+
+
+def test_pdf_page_falls_back_locally_but_cad_remains_strict(monkeypatch):
+    monkeypatch.setenv('ENGINEERING_NATIVE_URL','https://native.test')
+    monkeypatch.delenv('ENGINEERING_SERVICE_ROLE',raising=False)
+    monkeypatch.setattr(native_rpc,'call',lambda *args: (_ for _ in ()).throw(ValueError('remote unavailable')))
+
+    @native_rpc.native('pdf_page')
+    def page(): return {'tokens':[{'text':'42'}],'warnings':[]}
+    result=page()
+    assert result['tokens'][0]['text']=='42'
+    assert 'local PDF text fallback' in result['warnings'][0]
+
+    @native_rpc.native('drawing')
+    def drawing(): return 'invented'
+    with pytest.raises(ValueError,match='remote unavailable'):
+        drawing()
+
+
+def test_native_health_reports_storage_configuration(monkeypatch):
+    monkeypatch.delenv('SUPABASE_URL',raising=False)
+    monkeypatch.delenv('SUPABASE_SECRET_KEY',raising=False)
+    response=TestClient(native_entry.app).get('/health')
+    assert response.json()['status']=='misconfigured'
+    assert set(response.json()['missing'])=={'SUPABASE_URL','SUPABASE_SECRET_KEY'}
 
 def test_durable_model_preserves_tool_call_ids(monkeypatch,tmp_path):
     from langchain_core.messages import AIMessage,HumanMessage

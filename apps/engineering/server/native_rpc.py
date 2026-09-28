@@ -30,7 +30,13 @@ def call(operation, args, kwargs):
     response=httpx.post(os.environ['ENGINEERING_NATIVE_URL'].rstrip('/')+'/execute',
         headers=headers,json={'operation':operation,'input':publish(payload)},timeout=115)
     if not response.is_success:
-        raise ValueError(f'工程文件处理失败（{operation}，HTTP {response.status_code}），请查看工程服务日志')
+        try:
+            failure = response.json()
+        except (ValueError, TypeError):
+            failure = {}
+        code = str(failure.get('code', 'NATIVE_OPERATION_FAILED'))[:64]
+        detail = str(failure.get('detail', '请查看工程服务日志'))[:240]
+        raise ValueError(f'工程文件处理失败（{operation}，HTTP {response.status_code}，{code}）：{detail}')
     result=json.loads(Path(materialize(response.json()['output'])).read_text(encoding='utf-8'))
     def decode(v):
         if isinstance(v,dict) and set(v)=={'$file'}: return Path(materialize(v['$file']))
@@ -46,7 +52,18 @@ def native(operation):
         def wrapped(*args,**kwargs):
             if remote_enabled():
                 from .cloud_activity import activity_call
-                return activity_call('native_'+operation,call,operation,args,kwargs)
+                try:
+                    return activity_call('native_'+operation,call,operation,args,kwargs)
+                except (ValueError, OSError) as exc:
+                    # PDF text extraction is pure, bounded and already installed in the
+                    # Agent image. Keep vector PDFs usable when the optional OCR service
+                    # is unhealthy. Native CAD operations must never silently degrade.
+                    if operation != 'pdf_page':
+                        raise
+                    result = fn(*args, **kwargs)
+                    result.setdefault('warnings', []).append(
+                        f'remote OCR unavailable ({type(exc).__name__}); local PDF text fallback used')
+                    return result
             return fn(*args,**kwargs)
         return wrapped
     return decorate
