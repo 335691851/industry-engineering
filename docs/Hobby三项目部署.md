@@ -20,13 +20,13 @@ python scripts/sync_hobby_projects.py --check
 
 | 项目 | Vercel Root Directory | Framework | 职责 |
 |---|---|---|---|
-| engineering | `apps/engineering` | Other / 自动识别 Dockerfile.vercel | 逐页 OCR、CAD/PDF/DXF、LibreDWG |
-| agent-api | `apps/agent-api` | Other / 自动识别 Dockerfile.vercel | 业务 API、DeepAgents、任务记录 |
+| engineering | `apps/engineering` | 显式 Services 容器配置 | 逐页 OCR、CAD/PDF/DXF、LibreDWG |
+| agent-api | `apps/agent-api` | 显式 Services 容器配置 | 业务 API、DeepAgents、任务记录 |
 | platform | `apps/platform` | Next.js | 已构建前端、同源 API 代理、Workflow |
 
 建议先创建三个项目并记录各自的稳定 Production 域名，再配置变量并重新部署。可以连接同一个 GitHub 仓库，根目录不同。不要把本仓库根目录直接作为一个 Vercel 项目部署。
 
-容器项目不填写 npm 构建命令，也不要在 `functions` 中填写 `Dockerfile.vercel`：该字段用于匹配函数源码，不是 Docker 构建入口。两个容器项目的 vercel.json 仅保留 framework=null，依赖根目录 Dockerfile.vercel 自动识别。启用 Fluid Compute，并在项目控制台核对函数默认时限为 300 秒、内存为 2 GB。Vercel 应识别根目录的 `Dockerfile.vercel`。平台使用 `npm ci` 与 `npm run build`。三个项目都启用 Fluid Compute，区域尽可能靠近 Supabase。平台 public 已包含网页和 CAD 编辑器，首次部署无需重新构建 Vite。
+容器项目不填写 npm 构建命令，也不要在 `functions` 中填写 `Dockerfile.vercel`：该字段用于匹配函数源码，不是 Docker 构建入口。两个后端的 vercel.json 通过 services.backend 显式声明 root="."、runtime="container"、entrypoint="Dockerfile.vercel"，并以 /(.*) rewrite 暴露服务。Services 模式下不在顶层设置 framework/functions。启用 Fluid Compute，并在项目控制台核对函数默认时限为 300 秒、内存为 2 GB。Vercel 应识别根目录的 `Dockerfile.vercel`。平台使用 `npm ci` 与 `npm run build`。三个项目都启用 Fluid Compute，区域尽可能靠近 Supabase。平台 public 已包含网页和 CAD 编辑器，首次部署无需重新构建 Vite。
 
 ## 1. Supabase 初始化
 
@@ -128,3 +128,7 @@ python scripts/sync_hobby_projects.py --check
 - `frontend-source` 包含可编辑前端源码，部署网页来自 `apps/platform/public`。通常在主工程修改后重新运行 `npm run build`、`python scripts/package_hobby.py` 更新部署包。如果只修改解压后的仓库，在 frontend-source 执行 `npm ci`、`npm run build`，把生成的 dist 内容同步到 apps/platform/public 再提交。单独修改 frontend-source 不会自动更新已经构建的网页。
 
 官方依据：https://vercel.com/docs/functions/container-images 、https://vercel.com/docs/functions/limitations 、https://vercel.com/docs/plans/hobby 、https://vercel.com/docs/cron-jobs/usage-and-pricing 。
+
+### 空部署排查
+
+构建只有几十毫秒且没有安装依赖或镜像构建记录时，Ready 不代表容器已运行。使用最新显式 services 配置重新部署，检查 Agent `/api/deployment` 返回 cloud/authentication JSON，engineering `/health` 返回 engineering/ok。云端实际构建和运行仍需验证。
