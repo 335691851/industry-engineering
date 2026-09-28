@@ -1,0 +1,11 @@
+*
+!Dockerfile.cloud
+!requirements.txt
+!requirements-cloud.txt
+!requirements-engineering.txt
+!server/
+!server/**
+!scripts/
+!scripts/cloud_native_smoke.py
+**/__pycache__/
+**/*.pyc

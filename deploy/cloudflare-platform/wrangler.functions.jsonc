@@ -1,0 +1,11 @@
+{
+ "$schema":"node_modules/wrangler/config-schema.json",
+ "name":"engineering-platform-functions",
+ "main":"src/index.ts",
+ "compatibility_date":"2026-09-28",
+ "compatibility_flags":["nodejs_compat"],
+ "observability":{"enabled":true},
+ "triggers":{"crons":["*/5 * * * *"]},
+ "vars":{"PYTHON_BACKEND_URL":"https://replace-with-python-project.vercel.app"},
+ "workflows":[{"name":"engineering-business-functions","binding":"ENGINEERING_TASKS","class_name":"EngineeringTask"}]
+}

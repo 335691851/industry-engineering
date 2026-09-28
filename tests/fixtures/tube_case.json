@@ -1,0 +1,16 @@
+{
+  "case_id": "sample-tube-delivery-v1",
+  "source": "收卷轴-辊筒.pdf",
+  "scope": "人工核读样例的关键尺寸验收；不代表整套工艺已验证",
+  "expected": {
+    "shape_type": "tube",
+    "outer_diameter_mm": 154,
+    "inner_diameter_mm": 125,
+    "overall_length_mm": 1554,
+    "outer_reference": true,
+    "inner_tolerance": "+0.04/0",
+    "chamfer_mm": 0.5
+  },
+  "stock": {"outer_diameter_mm": 159, "inner_diameter_mm": 123, "overall_length_mm": 1560},
+  "zones": [{"end":"left","length_mm":270},{"end":"right","length_mm":270}]
+}

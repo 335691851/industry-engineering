@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "Dockerfile.vercel": {
+      "maxDuration": 300,
+      "memory": 2048
+    }
+  }
+}

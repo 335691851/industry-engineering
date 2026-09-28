@@ -1,0 +1,11 @@
+fastapi>=0.115,<1
+uvicorn>=0.34,<1
+httpx>=0.28,<1
+pymupdf>=1.25,<2
+ezdxf>=1.4,<2
+reportlab>=4.2,<5
+pillow>=11,<12
+openpyxl>=3.1,<4
+rapidocr-onnxruntime==1.4.4
+build123d==0.11.1
+python-dotenv>=1,<2

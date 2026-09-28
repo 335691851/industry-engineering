@@ -1,0 +1,4 @@
+SUPABASE_DB_URL=postgresql://replace-with-session-pool-connection
+SUPABASE_SECRET_KEY=replace-with-server-only-storage-key
+ENGINEERING_SERVICE_TOKEN=replace-with-random-token-at-least-32-characters
+DEEPSEEK_API_KEY=replace-with-model-api-key

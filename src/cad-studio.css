@@ -1,0 +1,11 @@
+html,body,#studio{display:block;width:100%;height:100%;margin:0;overflow:hidden;font-family:Inter,"Microsoft YaHei",sans-serif}
+.studio-shell{height:100%;display:flex;flex-direction:column;background:#18252c;color:#e9eff3}
+.studio-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 18px;background:#20333c;border-bottom:1px solid #40505b}
+.studio-header strong{font-size:18px;display:block}.studio-header span{font-size:12px;color:#b4c7d0}
+.studio-actions{display:flex;gap:8px;align-items:center}.studio-actions button,.studio-actions select{border:1px solid #57717d;border-radius:5px;color:#edf4f7;background:#304955;padding:9px 13px;font-size:13px;cursor:pointer}
+.studio-actions .primary{background:#45897d;border-color:#6eae9f}.studio-actions button:disabled{opacity:.5;cursor:wait}
+.studio-status{padding:7px 18px;font-size:12px;color:#c6ddd8;background:#203c43;min-height:18px}
+.studio-canvas{flex:1;min-height:0;position:relative}.studio-canvas>div{height:100%}
+.studio-canvas>.ml-cad-viewer-container{position:absolute;inset:0;width:100%;height:100%}
+.studio-canvas[aria-busy="true"]{pointer-events:none;opacity:.7}
+@media(max-width:900px){.studio-header{flex-wrap:wrap}.studio-actions{flex-wrap:wrap}}

@@ -1,0 +1,11 @@
+FROM python:3.12-slim-bookworm
+WORKDIR /app
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ENGINEERING_RUNTIME=cloud ENGINEERING_TASK_PROVIDER=vercel ENGINEERING_TASK_TIMEOUT_SECONDS=240 PORT=80
+COPY requirements.txt requirements-cloud.txt ./
+RUN pip install --no-cache-dir -r requirements-cloud.txt
+COPY server ./server
+RUN python -c "import server.cloud_entry"
+RUN useradd --create-home engineer
+USER engineer
+EXPOSE 80
+CMD ["python", "-m", "server.vercel_start"]

@@ -1,0 +1,31 @@
+FROM debian:bookworm-slim AS libredwg
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates xz-utils
+WORKDIR /build
+RUN curl -fL --retry 3 https://github.com/LibreDWG/libredwg/releases/download/0.14/libredwg-0.14.tar.xz -o source.tar.xz \
+    && echo '62ebb73b984f865960f20ed26619ea5f8789d5e3fd088fa40a2598384da81275  source.tar.xz' | sha256sum -c - \
+    && tar -xf source.tar.xz \
+    && cd libredwg-0.14 \
+    && ./configure --prefix=/opt/libredwg --disable-bindings --disable-python --disable-docs --disable-shared \
+    && make -j2 && make install \
+    && mkdir -p /opt/libredwg/share/licenses /opt/libredwg/share/source \
+    && cp COPYING /opt/libredwg/share/licenses/COPYING \
+    && cp /build/source.tar.xz /opt/libredwg/share/source/libredwg-0.14.tar.xz
+
+FROM python:3.12-slim-bookworm
+COPY --from=libredwg /opt/libredwg /opt/libredwg
+ENV LIBREDWG_BIN=/opt/libredwg/bin
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ENGINEERING_RUNTIME=cloud ENGINEERING_SERVICE_ROLE=engineering PORT=80 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 QT_QPA_PLATFORM=offscreen
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libglib2.0-0 libgl1 libgomp1 libxrender1 libsm6 libxext6 libxcb1 xvfb xauth fonts-noto-cjk \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /app
+COPY requirements-native.txt ./
+RUN pip install --no-cache-dir -r requirements-native.txt
+COPY server ./server
+RUN python -c "import server.native_entry; import server.cad_artifacts; import server.evidence"
+COPY scripts/cloud_native_smoke.py ./scripts/cloud_native_smoke.py
+RUN /opt/libredwg/bin/dwg2dxf --version && /opt/libredwg/bin/dxf2dwg --version
+RUN useradd --create-home engineer
+USER engineer
+EXPOSE 80
+CMD ["python", "-m", "server.native_entry"]

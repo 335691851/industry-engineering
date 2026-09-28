@@ -1,0 +1,15 @@
+{
+  "framework": "nextjs",
+  "functions": {
+    "app/**/*.js": {
+      "maxDuration": 300,
+      "memory": 2048
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cloud/reconcile",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

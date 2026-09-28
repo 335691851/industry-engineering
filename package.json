@@ -1,0 +1,40 @@
+{
+  "name": "engineering-analysis-platform",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/prepare-cad-studio.mjs",
+    "prebuild": "node scripts/prepare-cad-studio.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@mlightcad/cad-agent-plugin": "1.7.1",
+    "@mlightcad/cad-html-plugin": "1.7.1",
+    "@mlightcad/cad-pdf-plugin": "1.7.1",
+    "@mlightcad/cad-simple-viewer": "1.7.1",
+    "@mlightcad/cad-svg-plugin": "1.7.1",
+    "@mlightcad/cad-viewer": "1.7.1",
+    "@mlightcad/data-model": "1.14.13",
+    "@mlightcad/pdf-renderer": "1.7.1",
+    "@mlightcad/three-renderer": "1.7.1",
+    "@vueuse/core": "11.3.0",
+    "element-plus": "2.13.6",
+    "lodash-es": "4.17.21",
+    "lucide-react": "^0.468.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "three": "0.172.0",
+    "vue": "3.5.30",
+    "vue-i18n": "11.4.4"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "@vitejs/plugin-react": "^4.4.1",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0"
+  }
+}

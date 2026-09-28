@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "engineering-cloud-gateway",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-27",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {"enabled": true},
+  "vars": {
+    "SUPABASE_URL": "",
+    "SUPABASE_PUBLISHABLE_KEY": "",
+    "COMPUTE_URL": "",
+    "APP_ORIGIN": ""
+  },
+  "workflows": [{
+    "name": "engineering-validation",
+    "binding": "ENGINEERING_VALIDATION",
+    "class_name": "EngineeringValidation"
+  }]
+}
