@@ -1,4 +1,6 @@
 import json
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 import pytest
 from starlette.applications import Starlette
@@ -9,7 +11,7 @@ from starlette.testclient import TestClient
 from server.cloud_context import owner_id, workspace, owner
 from server import cloud_storage, cloud_tasks
 from server.cloud_app import CloudApplication
-from server.cloud_db import translate
+from server.cloud_db import Cursor, translate
 
 USER = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa'
 
@@ -18,6 +20,19 @@ def test_query_translation_preserves_parameter_data():
     assert translate('INSERT INTO messages VALUES (?,?,?,?,?,?,?)').startswith('INSERT INTO messages (id,project_id,role,mode,content,part_id,created_at)')
     assert translate('UPDATE parts SET drawing_pdf="",status=? WHERE id=?') == "UPDATE parts SET drawing_pdf='',status=%s WHERE id=%s"
     assert translate("SELECT '?' AS x WHERE id=?") == "SELECT '?' AS x WHERE id=%s"
+
+
+def test_cloud_rows_match_business_contract_and_are_json_serializable():
+    class Result:
+        def fetchone(self):
+            return {'id': 'part-1', 'owner_id': uuid.UUID(USER), 'rowid': 7,
+                    'created': datetime(2026, 9, 28, tzinfo=timezone.utc),
+                    'nested': [uuid.UUID(USER)]}
+
+    record = Cursor(Result()).fetchone()
+    assert record == {'id': 'part-1', 'created': '2026-09-28T00:00:00+00:00',
+                      'nested': [USER]}
+    assert json.loads(json.dumps(record))['nested'] == [USER]
 
 
 def test_private_objects_survive_cold_start_and_reject_cross_tenant(tmp_path, monkeypatch):

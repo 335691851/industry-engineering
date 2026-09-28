@@ -2,6 +2,9 @@
 import os
 from .cloud_config import database_url
 import re
+import uuid
+from datetime import date, datetime
+from decimal import Decimal
 from urllib.parse import urlparse
 from contextlib import contextmanager
 
@@ -49,10 +52,21 @@ class Cursor:
     def __init__(self, cursor): self.cursor = cursor
     @property
     def rowcount(self): return self.cursor.rowcount
+    def portable(self, value):
+        if isinstance(value, uuid.UUID): return str(value)
+        if isinstance(value, (date, datetime)): return value.isoformat()
+        if isinstance(value, Decimal): return float(value)
+        if isinstance(value, dict):
+            # These columns implement tenant isolation and Postgres ordering.
+            # They are not part of the SQLite-compatible business data contract.
+            return {key: self.portable(item) for key, item in value.items()
+                    if key not in ('owner_id', 'rowid')}
+        if isinstance(value, (list, tuple)): return [self.portable(item) for item in value]
+        return value
     def convert(self, value):
         if value is None: return None
         from .cloud_storage import transform
-        return transform(dict(value), downloading=True)
+        return transform(self.portable(dict(value)), downloading=True)
     def fetchone(self): return self.convert(self.cursor.fetchone())
     def fetchall(self): return [self.convert(v) for v in self.cursor.fetchall()]
     def __iter__(self): return iter(self.fetchall())
