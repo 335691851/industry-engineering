@@ -1,5 +1,5 @@
 FROM debian:bookworm-slim AS libredwg
-RUN apt-get update && apt-get install -y --no-install-recommends build-essential curl ca-certificates xz-utils
+RUN apt-get update && apt-get install -y --no-install-recommends build-essential pkg-config curl ca-certificates xz-utils
 WORKDIR /build
 RUN curl -fL --retry 3 https://github.com/LibreDWG/libredwg/releases/download/0.14/libredwg-0.14.tar.xz -o source.tar.xz \
     && echo '62ebb73b984f865960f20ed26619ea5f8789d5e3fd088fa40a2598384da81275  source.tar.xz' | sha256sum -c - \
