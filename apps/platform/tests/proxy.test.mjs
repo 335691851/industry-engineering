@@ -1,3 +1,4 @@
+process.env.ENGINEERING_SERVICE_TOKEN='test-service-token-at-least-32-characters';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {GET,POST} from '../app/api/[...path]/route.js';
@@ -9,6 +10,7 @@ test('proxy blocks internal access and preserves cookies and origin',async()=>{
     assert.equal(url.toString(),'https://agent.test/api/auth/login');
     assert.equal(options.headers.get('origin'),'https://platform.test');
     assert.equal(options.headers.has('authorization'),false);
+    assert.equal(options.headers.get('x-engineering-proof').length,64);
     const headers=new Headers();
     headers.append('set-cookie','engineering_access=one; HttpOnly; Secure; Path=/');
     headers.append('set-cookie','engineering_refresh=two; HttpOnly; Secure; Path=/api/auth');

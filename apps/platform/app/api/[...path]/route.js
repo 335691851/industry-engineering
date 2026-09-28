@@ -1,3 +1,4 @@
+import {createHmac} from 'node:crypto';
 // Browser calls remain same-origin; internal service routes are never proxied.
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
@@ -10,6 +11,14 @@ async function proxy(request) {
   for (const key of ['content-type','cookie','origin','accept']) {
     const value = request.headers.get(key); if(value) headers.set(key,value);
   }
+  const secret=process.env.ENGINEERING_SERVICE_TOKEN || '';
+  if(secret.length<32) return Response.json({detail:'platform 缺少服务端访问保护配置 ENGINEERING_SERVICE_TOKEN'}, {status:503});
+  const ip=request.headers.get('x-vercel-forwarded-for') || 'local';
+  const stamp=String(Math.floor(Date.now()/1000));
+  const proof=createHmac('sha256',secret).update(`${stamp}\n${request.method}\n${incoming.pathname}\n${ip}`).digest('hex');
+  headers.set('x-engineering-client',ip);
+  headers.set('x-engineering-time',stamp);
+  headers.set('x-engineering-proof',proof);
   if(process.env.ENGINEERING_BACKEND_BYPASS) headers.set('x-vercel-protection-bypass',process.env.ENGINEERING_BACKEND_BYPASS);
   try {
     const response = await fetch(new URL(incoming.pathname + incoming.search, base), {
@@ -28,7 +37,7 @@ async function proxy(request) {
       if (detail) return Response.json({detail}, {status:502,headers:{'cache-control':'private, no-store'}});
     }
     const outgoing = new Headers({'cache-control':'private, no-store'});
-    for(const key of ['content-type','content-disposition','location']) {
+    for(const key of ['content-type','content-disposition','location','retry-after']) {
       const value=response.headers.get(key); if(value) outgoing.set(key,value);
     }
     for(const value of response.headers.getSetCookie()) outgoing.append('set-cookie',value);

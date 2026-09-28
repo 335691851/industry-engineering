@@ -1,5 +1,6 @@
 """Postgres adapter for existing parameterized business queries; RLS on every request."""
 import os
+from .cloud_config import database_url
 import re
 from urllib.parse import urlparse
 from contextlib import contextmanager
@@ -35,9 +36,7 @@ def translate(sql):
 def raw_connection(schema='engineering', autocommit=False):
     import psycopg
     from psycopg.rows import dict_row
-    if urlparse(os.environ['SUPABASE_DB_URL']).port == 6543:
-        raise RuntimeError('请使用 Supabase 直连或 Session pooler；事务池不能保证租户上下文和项目锁')
-    con = psycopg.connect(os.environ['SUPABASE_DB_URL'], row_factory=dict_row, autocommit=True,
+    con = psycopg.connect(database_url(), row_factory=dict_row, autocommit=True,
                           prepare_threshold=None, connect_timeout=15)
     con.execute('SET ROLE engineering_app')
     con.execute("SELECT set_config('search_path', %s, false)", (schema + ',public',))

@@ -458,3 +458,10 @@ platform 配置 ENGINEERING_BACKEND_URL 指向 agent-api，必要时设置 ENGIN
 - 旧 Agent 配置说明：[历史说明入口](docs/Agent配置与实现方案.md)，应以本文及当前代码为准。
 
 后续改动 Agent 工具、状态门、记忆、模型配置或云端预算时，应同步更新本文对应章节，避免再次用日期追加方式留下互相冲突的架构说明。
+
+
+## 免账密访问更新
+
+前端 CloudSession 自动调用 `/api/auth/anonymous`，优先恢复已有身份，缺少 Cookie 才创建 Supabase 匿名用户；不再调用密码授权。匿名身份继续使用 owner RLS、私有文件和持久化 Agent 会话，不共享不同浏览器的工程数据。令牌仍仅存 HttpOnly Cookie。
+
+platform 同源代理签署请求来源；`cloud_guard.py` 验证签名和 60 秒时间窗口，并使用 Postgres 原子计数执行 IP 读取/写入/注册/生成限额。`CloudApplication.execute_task` 在项目锁之外获取全站执行槽，默认 2 个。超过槽数返回 409，Workflow 延迟重试；限频返回 429。详见《Hobby三项目部署》免账密章节。

@@ -46,6 +46,8 @@ def test_private_objects_survive_cold_start_and_reject_cross_tenant(tmp_path, mo
 
 
 def test_cloud_auth_csrf_tenant_context_and_async_generation(monkeypatch):
+    monkeypatch.setattr('server.cloud_guard.client_key', lambda request: 'test')
+    monkeypatch.setattr('server.cloud_guard.limit', lambda *args: None)
     async def auth(token): return {'id': USER} if token == 'valid' else None
     monkeypatch.setattr('server.cloud_app.auth_user', auth)
     monkeypatch.setenv('ENGINEERING_APP_ORIGIN', 'https://app.example.com')

@@ -45,7 +45,7 @@ python scripts/sync_hobby_projects.py --check
    ```
 
    连接串仅放环境变量，禁止写入仓库。密码含特殊字符时使用 URL 编码。脚本创建检查点表并加租户策略，不会删除业务数据。
-5. 在 Authentication 中创建测试用户（邮箱和密码）。当前前端提供登录，不提供自助注册；首次用户从 Dashboard 创建。配置 Site URL 为平台域名。
+5. 在 Authentication → Sign In / Providers 开启 Anonymous Sign-Ins；访问平台自动创建或恢复免账密会话。配置 Site URL 为平台域名。
 
 已有云端业务库只需执行尚未应用的迁移；部署默认不上传本地业务数据、不导入历史样例，也不清空云端库。
 
@@ -103,11 +103,11 @@ python scripts/sync_hobby_projects.py --check
 
 1. engineering `/health` 应返回 `service=engineering`；无服务密钥 POST `/execute` 必须返回 401。
 2. platform `/index.html` 可打开，`/api/deployment` 返回 cloud；未登录访问业务数据返回 401。
-3. 使用 Supabase 中创建的用户登录。刷新页面仍能读取项目，退出后不可读取私有数据。
+3. 首次打开自动进入浏览器独立工作区，刷新仍能读取项目；不再提供邮箱密码入口。
 4. 上传一个小 PDF，确认上传成功并出现预览；生成 MBOM，刷新页面观察任务是否继续。
 5. 审核 MBOM → 确认相似图输入 → 生成单个零件图 → 人工审核 → 生成工艺 → 保存。未审核不得越过阶段。
 6. 测试 CAD DXF 导入和编辑保存，下载 PDF/DXF，核对几何与标注。DWG 不通过回读校核时必须保留错误提示。
-7. 换第二个账号，确认不能读取第一个账号的项目、任务和 Storage 文件。
+7. 使用另一浏览器/无痕窗口，确认不能读取原浏览器的项目、任务和 Storage 文件。
 8. 查看三项目日志，确认没有 504、OOM 或数据库连接耗尽。真实模型耗时与原生内存占用需要在实际环境验证。
 
 ## 5. GitHub 自动检查
@@ -132,3 +132,17 @@ python scripts/sync_hobby_projects.py --check
 ### 空部署排查
 
 构建只有几十毫秒且没有安装依赖或镜像构建记录时，Ready 不代表容器已运行。使用最新显式 services 配置重新部署，检查 Agent `/api/deployment` 返回 cloud/authentication JSON，engineering `/health` 返回 engineering/ok。云端实际构建和运行仍需验证。
+
+
+## 免账密访问与基础防护
+
+应用使用 Supabase 匿名身份，仍通过 HttpOnly/Secure/SameSite Cookie 和 owner RLS 隔离数据。
+已有效的旧会话继续使用，刷新令牌失效时不会偷偷切换成新身份。清除 Cookie、更换设备或长期会话过期后不能自动恢复旧工作区，请及时导出成果。
+
+部署前执行 `20260928074608_anonymous_access_guard.sql`（本项目云库已应用）。platform 与 agent-api 的 `ENGINEERING_SERVICE_TOKEN` 必须一致且至少 32 字符，平台以 HMAC 签署 Vercel 提供的客户端地址、时间、HTTP 方法、路径，后端拒绝未签名请求。
+
+默认同 IP：读取 120 次/分钟，写入 20 次/分钟，新建匿名会话 5 次/小时，生成提交 30 次/小时；超限返回 429 和 Retry-After。Postgres 原子计数跨实例共享，仅存地址 HMAC，过期计数在后续请求清理。固定窗口边界可能允许短时双倍突发，属于基础限频而非 DDoS 防护。
+
+工程任务继续按项目串行，另以数据库会话锁限制全站同时执行任务数（agent-api `ENGINEERING_MAX_CONCURRENT_TASKS` 默认 2，允许 1–8）。繁忙任务由已有 Workflow 30 秒后重试。长任务中的多个模型调用不等于单个提交，限频不是精确费用预算。匿名注册还受 Supabase 自身限流约束；高流量公开发布可进一步增加 CAPTCHA/WAF。
+
+代码上线需重新部署 platform 和 agent-api；无须修改 engineering 的 native API。

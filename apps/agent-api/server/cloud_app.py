@@ -6,6 +6,7 @@ Long requests are persisted and executed by the configured Workflow service, not
 import hmac
 import json
 import os
+from .cloud_config import database_url
 import re
 import tempfile
 
@@ -15,7 +16,7 @@ from starlette.responses import JSONResponse
 from starlette.concurrency import run_in_threadpool
 
 from .cloud_context import owner_id, workspace, owner
-from . import cloud_tasks
+from . import cloud_tasks, cloud_guard
 
 UUID = re.compile(r'^[0-9a-fA-F-]{36}$')
 TASK_ID = re.compile(r'^[a-f0-9]{12}$')
@@ -77,7 +78,7 @@ class CloudApplication:
     async def handle(self, request):
         path = request.url.path
         if path == '/api/deployment':
-            return JSONResponse({'runtime': 'cloud', 'authentication': True})
+            return JSONResponse({'runtime': 'cloud', 'authentication': True, 'auth_mode': 'anonymous'})
         if path == '/api/internal/outbox' and request.method == 'POST':
             secret = os.getenv('ENGINEERING_SERVICE_TOKEN', '')
             if len(secret)<32 or not hmac.compare_digest(request.headers.get('Authorization','').encode(),('Bearer '+secret).encode()):
@@ -86,7 +87,7 @@ class CloudApplication:
                 import psycopg
                 from psycopg.rows import dict_row
                 # Explicit administrative outbox read, reachable only with the worker service secret.
-                with psycopg.connect(os.environ['SUPABASE_DB_URL'],row_factory=dict_row,connect_timeout=15) as con:
+                with psycopg.connect(database_url(),row_factory=dict_row,connect_timeout=15) as con:
                     return con.execute("SELECT id,owner_id::text FROM engineering.cloud_tasks WHERE state='queued' OR (state='running' AND updated_at::timestamptz < now()-interval '15 minutes') ORDER BY created_at LIMIT 100").fetchall()
             return JSONResponse(await run_in_threadpool(pending))
         if path == '/api/internal/redispatch' and request.method == 'POST':
@@ -123,21 +124,31 @@ class CloudApplication:
             origin = request.headers.get('Origin', '').rstrip('/')
             if not expected or origin != expected:
                 return JSONResponse({'detail': '请求来源不匹配'}, status_code=403)
-        if path in ('/api/auth/login', '/api/auth/refresh') and request.method == 'POST':
-            if path.endswith('login'):
-                value = await request.json()
-                body = {'email': str(value.get('email', ''))[:320], 'password': str(value.get('password', ''))[:1000]}
-                grant = 'password'
-            else:
-                body = {'refresh_token': request.cookies.get('engineering_refresh', '')}
-                grant = 'refresh_token'
+        ip = cloud_guard.client_key(request)
+        limited = await run_in_threadpool(cloud_guard.limit, 'read' if request.method in ('GET', 'HEAD') else 'write', ip)
+        if limited: return limited
+        if path == '/api/auth/login':
+            return JSONResponse({'detail': '已改为免账密访问'}, status_code=410)
+        if path in ('/api/auth/anonymous', '/api/auth/refresh') and request.method == 'POST':
+            existing = await auth_user(request.cookies.get('engineering_access', ''))
+            if existing and path.endswith('anonymous'):
+                return JSONResponse({'authenticated': True, 'id': existing['id']})
+            refresh = request.cookies.get('engineering_refresh', '')
             async with httpx.AsyncClient(timeout=15) as client:
-                result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/token?grant_type=' + grant,
-                                          headers=supabase_headers(), json=body)
+                if refresh:
+                    result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/token?grant_type=refresh_token',
+                                               headers=supabase_headers(), json={'refresh_token': refresh})
+                elif path.endswith('anonymous'):
+                    limited = await run_in_threadpool(cloud_guard.limit, 'signup', ip)
+                    if limited: return limited
+                    result = await client.post(os.environ['SUPABASE_URL'].rstrip('/') + '/auth/v1/signup', headers=supabase_headers(), json={})
+                else:
+                    return JSONResponse({'detail': '浏览器会话已过期'}, status_code=401)
             if not result.is_success:
-                return JSONResponse({'detail': '登录失败或会话已过期'}, status_code=401)
+                # Never silently replace a lost identity and hide its engineering data.
+                return JSONResponse({'detail': '无法恢复浏览器工作区，请检查匿名登录配置或会话状态；已有数据不会删除'}, status_code=503)
             data = result.json()
-            response = JSONResponse({'authenticated': True})
+            response = JSONResponse({'authenticated': True, 'id': data['user']['id']})
             cookie(response, data['access_token'], data['refresh_token'])
             return response
         if path == '/api/auth/logout' and request.method == 'POST':
@@ -147,8 +158,11 @@ class CloudApplication:
             return response
         token = request.cookies.get('engineering_access', '')
         user = await auth_user(token)
-        if not user: return JSONResponse({'detail': '请登录工程平台'}, status_code=401)
+        if not user: return JSONResponse({'detail': '浏览器工作区会话已过期'}, status_code=401)
         owner_id.set(user['id'])
+        if request.method == 'POST' and (cloud_tasks.LONG_ROUTE.fullmatch(path) or 'generate' in path):
+            limited = await run_in_threadpool(cloud_guard.limit, 'generation', ip)
+            if limited: return limited
         if path == '/api/auth/me':
             return JSONResponse({'id': user['id'], 'email': user.get('email', '')})
         if path in ('/api/uploads/prepare','/api/uploads/complete') and request.method=='POST':
@@ -204,6 +218,8 @@ class CloudApplication:
             key = owner() + ':' + item['project_id']
             locked = await run_in_threadpool(lambda: con.execute('SELECT pg_try_advisory_lock(hashtextextended(%s,0)) AS locked', (key,)).fetchone()['locked'])
             if not locked: return JSONResponse({'detail': '本项目另一个工程任务仍在执行'}, status_code=409)
+            if not await run_in_threadpool(cloud_guard.acquire_slot, con):
+                return JSONResponse({'detail': '生成任务繁忙，请稍后重试'}, status_code=409)
             item = await run_in_threadpool(cloud_tasks.task, task_id)
             if item['state'] in ('completed', 'failed'):
                 return JSONResponse({'state': item['state']})
