@@ -68,9 +68,9 @@ class CloudApplication:
                     await response(scope, receive, send)
             except (ValueError, PermissionError) as exc:
                 await JSONResponse({'detail': str(exc)[:240]}, status_code=400)(scope, receive, send)
-            except Exception:
-                # Avoid leaking storage keys, credentials or provider responses to the browser.
-                await JSONResponse({'detail': '云端服务执行失败，请查看任务状态或服务日志'}, status_code=503)(scope, receive, send)
+            except Exception as exc:
+                from .cloud_errors import describe_failure
+                await JSONResponse(describe_failure(exc), status_code=503)(scope, receive, send)
             finally:
                 workspace.reset(work_token)
                 owner_id.reset(user_token)
