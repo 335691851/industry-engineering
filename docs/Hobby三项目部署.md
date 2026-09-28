@@ -36,7 +36,7 @@ python scripts/sync_hobby_projects.py --check
    - `supabase/migrations/20260928040000_hobby_activities.sql`
 2. 上述第一份迁移会创建业务表、`engineering_app` 角色、租户 RLS 和 `engineering-private` 私有 bucket。初次安装执行一次，不要重复运行第一份迁移。
 3. 获取 Session pooler 的连接串（5432，携带 `sslmode=require`）。不要使用 6543 Transaction pooler：当前项目锁和 LangGraph 检查点依赖连接上下文。
-4. 初始化 Agent 检查点。在自己的电脑终端执行：
+4. 初始化 Agent 检查点：新建库可在 SQL Editor 执行 `supabase/migrations/20260928050000_agent_checkpoints.sql`（与当前安装的 PostgresSaver 迁移版本 0–9 对齐）。已经初始化的库不要重复执行此 SQL。也可在自己的电脑终端执行下述脚本：
 
    ```powershell
    python -m pip install "psycopg[binary]>=3.2,<4" "langgraph-checkpoint-postgres>=3,<4"
