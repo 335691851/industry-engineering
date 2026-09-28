@@ -7,7 +7,12 @@ export function CloudSession({children}:{children:ReactNode}) {
   const [busy,setBusy]=useState(false),[pending,setPending]=useState('')
   useEffect(()=>{
     let active=true
-    fetch('/api/deployment').then(r=>{if(!r.ok)throw new Error('无法连接工程后端');return r.json()}).then(async config=>{
+    fetch('/api/deployment').then(async r=>{
+      const config=await r.json().catch(()=>null)
+      if(!r.ok)throw new Error(config?.detail || `工程后端连接失败（HTTP ${r.status}），请检查部署地址和 API 路由`)
+      if(!config || typeof config.authentication !== 'boolean')throw new Error('工程后端返回格式异常，请检查服务地址和部署保护配置')
+      return config
+    }).then(async config=>{
       if (!active) return
       if (!config.authentication) {setMode('local');return}
       const r=await authenticatedFetch('/api/auth/me')
