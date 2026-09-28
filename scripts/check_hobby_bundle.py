@@ -9,6 +9,8 @@ def check(root):
     for name in ('platform','agent-api','engineering'):
         folder=root/'apps'/name
         config=json.loads((folder/'vercel.json').read_text())
+        assert not any('dockerfile' in key.lower() or 'containerfile' in key.lower()
+                       for key in config.get('functions',{})), 'Dockerfile is not a Serverless function pattern'
         for fn in config.get('functions',{}).values():
             assert fn.get('maxDuration',300)<=300, name+' duration exceeds Hobby'
             assert fn.get('memory',2048)<=2048, name+' memory exceeds Hobby'

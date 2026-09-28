@@ -26,7 +26,7 @@ python scripts/sync_hobby_projects.py --check
 
 建议先创建三个项目并记录各自的稳定 Production 域名，再配置变量并重新部署。可以连接同一个 GitHub 仓库，根目录不同。不要把本仓库根目录直接作为一个 Vercel 项目部署。
 
-容器项目不填写 npm 构建命令。Vercel 应识别根目录的 `Dockerfile.vercel`。平台使用 `npm ci` 与 `npm run build`。三个项目都启用 Fluid Compute，区域尽可能靠近 Supabase。平台 public 已包含网页和 CAD 编辑器，首次部署无需重新构建 Vite。
+容器项目不填写 npm 构建命令，也不要在 `functions` 中填写 `Dockerfile.vercel`：该字段用于匹配函数源码，不是 Docker 构建入口。两个容器项目的 vercel.json 仅保留 framework=null，依赖根目录 Dockerfile.vercel 自动识别。启用 Fluid Compute，并在项目控制台核对函数默认时限为 300 秒、内存为 2 GB。Vercel 应识别根目录的 `Dockerfile.vercel`。平台使用 `npm ci` 与 `npm run build`。三个项目都启用 Fluid Compute，区域尽可能靠近 Supabase。平台 public 已包含网页和 CAD 编辑器，首次部署无需重新构建 Vite。
 
 ## 1. Supabase 初始化
 
@@ -88,7 +88,7 @@ python scripts/sync_hobby_projects.py --check
 
 浏览器 → platform 同源代理 → agent-api。生成请求写入 Supabase 后返回 202；平台 Workflow 以任务 ID 和租户 ID 调用 Agent。Agent 将 OCR/CAD 输入放私有 Storage，再调用工程服务；文件结果也通过 Storage 返回。
 
-- 所有函数配置上限 300 秒、2048 MB；Agent 子进程最多 240 秒。
+- 平台函数配置上限 300 秒、2048 MB；容器使用项目的 Hobby / Fluid 默认资源设置，请在控制台核对。Agent 子进程最多 240 秒。
 - 工程原生子进程最多 100 秒，超时终止子进程；远程调用最多 115 秒。
 - 模型调用 95 秒，无 SDK 内部重试叠加。已完成模型响应、逐页 OCR、原生输出和成功提交结果写入 `cloud_activities`。
 - 在下一个耗时步骤开始前检查预算；预算不足将任务置回 queued，Workflow 再执行一个分段，复用完成的活动。每个任务最多 40 个分段。
