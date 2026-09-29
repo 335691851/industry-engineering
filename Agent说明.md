@@ -174,13 +174,16 @@ Python 依赖使用版本范围，未全部精确锁版本。下述框架默认�
 → _save_part_drawing（确定性制图 Agent harness）
 → 刷新项目与对象快照 → _commit_part_drawing
 → MBOM、直接下级、参考输入门检查
-→ ai.draft_part：视觉与工程契约生成 JSON
+→ engineering_context.build_generation_context：汇总 MBOM 拓扑、父子接口、装配尺寸、精度/工艺要求和人工锁定值
+→ ai.draft_part：视觉证据与工程约束联合生成成品制造定义 JSON
 → 覆盖人工锁定参数
 → complete_draft_geometry + check_geometry + pending_geometry
 → export_drawing：中间模型、实体检查、PDF/DXF、尝试 DWG
 → 校验 updated_at，失效祖先成果并保存
 → 返回业务摘要、待复核项与实际可用格式
 ```
+
+生成前的几何缺项是制图 Agent 的推导任务，不再要求用户先填写完整尺寸。Agent 可从已审核装配接口和闭合尺寸链形成候选值，并为其记录推导输入、计算关系及置信度；存在多个合理解时给出可制造候选并列入待复核。用户编辑作为高优先级覆盖。生成后的几何错误、尺寸链冲突和证据冲突仍由确定性门禁阻止审核。
 
 先导出再修改业务数据，避免预算切片时过早改变版本。保存使用更新时间检测并发变更，发现对象已更新时拒绝覆盖。制图导出写入独立版本目录；版本目录不等于完整 PLM 版本管理系统。
 
@@ -244,7 +247,12 @@ OCR 图最长边上限 2400 像素，视觉切片最长边上限 1800 像素。�
 
 ### 8.2 尺寸证据定位
 
-模型输出 `dimension_evidence`：字段路径 → token_ids、page、raw_text、state。state 区分 stock、part_delivery、post_assembly。关键尺寸缺少定位时，另做一次“只找证据、不修改数值”的模型调用，然后由 `ground_dimensions` 检查引用与读数，保留疑点。
+模型输出 `dimension_evidence`，支持两类来源：
+
+- `method=drawing`：字段路径 → token_ids、page、raw_text、state；由 `ground_dimensions` 校验引用位置和读数。
+- `method=derived/rule`：字段路径 → derivation、input_fields、confidence、state；用于已审核装配接口、拓扑和尺寸链的工程推导，不伪造 OCR 引用。缺少输入约束、计算关系或置信度仍会形成审核阻塞。
+
+state 区分 stock、part_delivery、post_assembly。原图关键尺寸缺少定位时，另做一次“只找证据、不修改数值”的模型调用，然后由 `ground_dimensions` 检查引用与读数，保留疑点。
 
 当前参考单件图被选用后，其图片替代装配全图作为主要视觉输入，装配上下文缩减，以减少轴头尺寸污染筒体等跨对象错误。未审核候选 geometry 不作为下一次生成的权威证据；人工锁定字段保留。
 
@@ -292,6 +300,8 @@ OCR 图最长边上限 2400 像素，视觉切片最长边上限 1800 像素。�
 | validation | policy、errors、warnings、blocked/pending_human_review |
 
 `verified` 当前来自人工覆盖字段判断，不是计量认证或完整审核链证明。数据主要嵌在 geometry JSON 中；工程模型是投影和报告，不是独立的完整特征数据库。导出旁保存 `engineering-model.json`，API `/api/parts/{id}/engineering-model` 提供报告，前端弹窗呈现。
+
+尺寸 `basis` 区分 `user`、`model_extraction` 和 `engineering_derivation`。工程推导不是“已确认”，但只要来源契约完整、几何闭合且无冲突，可以形成待人工审核的制造图草案；人工审核才使图纸进入下游工艺输入。
 
 ### 10.2 留量计算
 

@@ -12,6 +12,13 @@ def generation_summary(part, stage):
         if g.get('dwg_warning'): lines.append('DWG 导出：'+str(g['dwg_warning']))
         for a in g['manufacturing']['allowances']:
             if a.get('calculation'): lines.append('放量：'+a['calculation'])
+        route = g['manufacturing'].get('core_route') or []
+        if route: lines.append('预设计工艺：'+' → '.join(str(item) for item in route))
+        requirements = (g.get('technical_requirements') or []) + (g.get('tolerances') or [])
+        if requirements: lines.append('制造与检验特性：'+'；'.join(str(item) for item in requirements[:5]))
+        derived = [item['id'] for item in ((g.get('engineering_model') or {}).get('dimensions') or [])
+                   if item.get('basis') == 'engineering_derivation']
+        if derived: lines.append('工程推导尺寸：'+'、'.join(derived)+'（来源与计算关系见校核报告）')
         blockers = geometry_blockers(g)
         if blockers: lines += ['审核阻塞：'] + ['• '+x for x in blockers]
         reviews = list(g.get('review_items') or []) + [a['warning'] for a in g['manufacturing']['allowances'] if a.get('warning')]
