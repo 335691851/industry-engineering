@@ -1,10 +1,12 @@
-import {createHmac} from 'node:crypto';
-// Browser calls remain same-origin; internal service routes are never proxied.
+import {createHmac,timingSafeEqual} from 'node:crypto';
+// Browser calls remain same-origin. One service-authenticated route transports
+// tenant files between the isolated Agent and Engineering containers.
 export const maxDuration = 300;
 export const dynamic = 'force-dynamic';
 async function proxy(request) {
   const incoming = new URL(request.url);
-  if (incoming.pathname.startsWith('/api/internal/')) return new Response(null, {status:404});
+  const nativeStorage=incoming.pathname==='/api/internal/native-storage';
+  if (incoming.pathname.startsWith('/api/internal/') && !nativeStorage) return new Response(null, {status:404});
   const base = process.env.ENGINEERING_BACKEND_URL;
   if (!base) return Response.json({detail:'灏氭湭閰嶇疆 Agent 鏈嶅姟鍦板潃'}, {status:503});
   const headers = new Headers();
@@ -13,12 +15,24 @@ async function proxy(request) {
   }
   const secret=process.env.ENGINEERING_SERVICE_TOKEN || '';
   if(secret.length<32) return Response.json({detail:'platform 缺少服务端访问保护配置 ENGINEERING_SERVICE_TOKEN'}, {status:503});
+  if(nativeStorage){
+    const supplied=request.headers.get('authorization') || '';
+    const expected=`Bearer ${secret}`;
+    if(supplied.length!==expected.length || !timingSafeEqual(Buffer.from(supplied),Buffer.from(expected)))
+      return new Response(null,{status:401});
+    const owner=request.headers.get('x-engineering-owner') || '';
+    if(!/^[0-9a-f-]{36}$/i.test(owner))return new Response(null,{status:401});
+    headers.set('authorization',supplied);
+    headers.set('x-engineering-owner',owner);
+  }
   const ip=(request.headers.get('x-vercel-forwarded-for') || '').split(',')[0].trim() || '127.0.0.1';
   const stamp=String(Math.floor(Date.now()/1000));
   const proof=createHmac('sha256',secret).update(`${stamp}\n${request.method}\n${incoming.pathname}\n${ip}`).digest('hex');
-  headers.set('x-engineering-client',ip);
-  headers.set('x-engineering-time',stamp);
-  headers.set('x-engineering-proof',proof);
+  if(!nativeStorage){
+    headers.set('x-engineering-client',ip);
+    headers.set('x-engineering-time',stamp);
+    headers.set('x-engineering-proof',proof);
+  }
   if(process.env.ENGINEERING_BACKEND_BYPASS) headers.set('x-vercel-protection-bypass',process.env.ENGINEERING_BACKEND_BYPASS);
   try {
     const response = await fetch(new URL(incoming.pathname + incoming.search, base), {

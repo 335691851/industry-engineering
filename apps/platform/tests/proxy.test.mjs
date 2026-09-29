@@ -24,6 +24,26 @@ test('proxy blocks internal access and preserves cookies and origin',async()=>{
   }finally{globalThis.fetch=original}
 });
 
+test('native storage proxy requires the shared service identity',async()=>{
+  process.env.ENGINEERING_BACKEND_URL='https://agent.test';
+  const original=globalThis.fetch;
+  const owner='aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+  globalThis.fetch=async(url,options)=>{
+    assert.equal(url.toString(),'https://agent.test/api/internal/native-storage?key='+owner+'%2Frpc%2Ffile.json');
+    assert.equal(options.headers.get('authorization'),'Bearer '+process.env.ENGINEERING_SERVICE_TOKEN);
+    assert.equal(options.headers.get('x-engineering-owner'),owner);
+    assert.equal(options.headers.has('x-engineering-proof'),false);
+    return new Response('artifact');
+  };
+  try{
+    const url='https://platform.test/api/internal/native-storage?key='+owner+'%2Frpc%2Ffile.json';
+    assert.equal((await GET(new Request(url))).status,401);
+    const response=await GET(new Request(url,{headers:{authorization:'Bearer '+process.env.ENGINEERING_SERVICE_TOKEN,'x-engineering-owner':owner}}));
+    assert.equal(response.status,200);
+    assert.equal(await response.text(),'artifact');
+  }finally{globalThis.fetch=original}
+});
+
 
 test('deployment probe explains upstream deployment failures',async()=>{
   process.env.ENGINEERING_BACKEND_URL='https://agent.test';

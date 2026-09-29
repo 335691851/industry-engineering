@@ -28,6 +28,7 @@ def call(operation, args, kwargs):
     headers={'Authorization':'Bearer '+os.environ['ENGINEERING_SERVICE_TOKEN'],'X-Engineering-Owner':owner()}
     if os.getenv('ENGINEERING_NATIVE_BYPASS'): headers['x-vercel-protection-bypass']=os.environ['ENGINEERING_NATIVE_BYPASS']
     proxy_base = (os.getenv('ENGINEERING_STORAGE_PROXY_URL') or
+                  os.getenv('ENGINEERING_ORCHESTRATOR_URL') or
                   os.getenv('VERCEL_PROJECT_PRODUCTION_URL') or os.getenv('VERCEL_URL') or '').rstrip('/')
     if proxy_base and not proxy_base.startswith(('http://', 'https://')):
         proxy_base = 'https://' + proxy_base
