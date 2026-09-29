@@ -28,7 +28,7 @@ def client_key(request):
 
 def limit(kind, key):
     import psycopg
-    maximum, seconds = {'read': (120, 60), 'write': (20, 60), 'signup': (5, 3600), 'generation': (30, 3600)}[kind]
+    maximum, seconds = {'read': (120, 60), 'write': (20, 60), 'signup': (12, 3600), 'generation': (30, 3600)}[kind]
     # Administrative connection is used only for anonymous counters, never business rows.
     with psycopg.connect(database_url(), connect_timeout=10) as con:
         con.execute("DELETE FROM engineering.access_buckets WHERE expires_at < now()")
