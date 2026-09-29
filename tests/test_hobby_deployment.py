@@ -211,3 +211,15 @@ def test_deepagent_resumes_cached_model_and_tool_sequence(monkeypatch,tmp_path):
         assert result['messages'][-1].content=='done'
         assert len(model_calls)==3 and commits==[True]
     finally: activity.task_context.reset(token);workspace.reset(work);owner_id.reset(who)
+
+
+def test_deployment_copies_only_service_runtime_modules():
+    root = Path(__file__).resolve().parents[1]
+    engineering = root/'apps'/'engineering'/'server'
+    agent_api = root/'apps'/'agent-api'/'server'
+    assert (engineering/'native_entry.py').is_file()
+    assert (engineering/'drawing.py').is_file()
+    assert not (engineering/'agent.py').exists()
+    assert not (engineering/'cloud_app.py').exists()
+    assert (agent_api/'cloud_entry.py').is_file()
+    assert not (agent_api/'native_job.py').exists()

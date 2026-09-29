@@ -6,6 +6,14 @@ ezdxf>=1.4,<2
 reportlab>=4.2,<5
 pillow>=11,<12
 openpyxl>=3.1,<4
-rapidocr-onnxruntime==1.4.4
-build123d==0.11.1
-python-dotenv>=1,<2
+# rapidocr is installed with --no-deps in Docker so it cannot pull the GUI
+# OpenCV wheel alongside the headless runtime declared here.
+onnxruntime>=1.20,<2
+opencv-python-headless>=4.10,<5
+numpy>=2,<3
+pyclipper>=1.3,<2
+Shapely>=2,<3
+PyYAML>=6,<7
+six>=1.16,<2
+tqdm>=4.66,<5
+cadquery-ocp-novtk==7.9.3.1.1

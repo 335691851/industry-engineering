@@ -15,7 +15,7 @@
 - DWG 写出限定 R2000；不声称支持可靠写出 R2018。写出后再次读取，对图元属性、文字、尺寸块、布局与单位作保守比较；失败不发布 DWG，保留 PDF/DXF。
 - 转换失败原因保存至 geometry.dwg_warning，在导出区和生成摘要中展示。
 - 原图不覆盖；转换在独立临时目录使用固定文件名，90 秒超时，原生子进程输出写入临时日志。
-- `apps/engineering/Dockerfile.vercel` 在独立构建阶段编译固定版本 LibreDWG。源码归档校验 SHA256，镜像保留 COPYING 和对应源码。
+- `apps/engineering/Dockerfile.vercel` 在独立构建阶段编译固定版本 LibreDWG。源码归档校验 SHA256；运行镜像只保留裁剪后的转换程序和 COPYING，固定版本源码由上游发布地址长期对应，避免把编译源码、头文件和静态开发库重复计入每次函数部署。
 
 ## 实测结果与限制
 

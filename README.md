@@ -11,7 +11,7 @@
 | Web 工作台 | React、TypeScript、Vite | 工程会话、MBOM、图纸、工艺、零件管理 |
 | 在线 CAD | MLightCAD、ezdxf | DXF 编辑、标注、布局预览和版本保存 |
 | 业务与 Agent | FastAPI、DeepAgents、LangChain、LangGraph | 专项 Agent、工具调用、阶段门禁和会话恢复 |
-| 工程运行时 | PyMuPDF、RapidOCR、build123d、LibreDWG | PDF/OCR、工程计算、CAD 转换和制图 |
+| 工程运行时 | PyMuPDF、RapidOCR、OpenCascade/OCP、LibreDWG | PDF/OCR、工程计算、CAD 转换和制图 |
 | 云端持久化 | Supabase Postgres、Auth、Storage | 匿名工作区、租户隔离、私有文件和检查点 |
 | 部署 | Vercel 三项目 | `platform`、`agent-api`、`engineering` |
 

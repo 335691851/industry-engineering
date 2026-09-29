@@ -1,5 +1,9 @@
+*
+!Dockerfile.vercel
+!requirements.txt
+!requirements-cloud.txt
+!server/
+!server/**
+**/__pycache__/
+**/*.pyc
 .env*
-__pycache__
-*.pyc
-.git
-data

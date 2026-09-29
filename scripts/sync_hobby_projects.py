@@ -1,17 +1,52 @@
 """Synchronize independent Vercel roots in this repository; no archive is created."""
 import argparse
+import ast
 import hashlib
 import json
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[1]
 
+
+def python_closure(*entrypoints):
+    """Return local modules reachable from a service's explicit entrypoints.
+
+    The two containers previously received every server module.  Besides a
+    little image waste, that made an Agent-only edit redeploy the large native
+    Engineering container.  Static relative imports plus explicit dynamic
+    native-operation roots keep each Vercel Root Directory independently
+    deployable.  Missing optional modules are ignored here and fail at their
+    normal import/build gate instead.
+    """
+    source = ROOT/'server'
+    pending = list(entrypoints)
+    result = {'__init__'}
+    while pending:
+        name = pending.pop()
+        path = source/f'{name}.py'
+        if name in result or not path.is_file():
+            continue
+        result.add(name)
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom) or not node.level:
+                continue
+            names = [node.module.split('.')[0]] if node.module else [item.name.split('.')[0] for item in node.names]
+            pending.extend(item for item in names if (source/f'{item}.py').is_file())
+    return [source/f'{name}.py' for name in sorted(result) if (source/f'{name}.py').is_file()]
+
 def synchronize(check=False):
     if not (ROOT/'dist/index.html').is_file(): raise ValueError('先运行 npm ci 和 npm run build')
     mapping={}
-    for name in ('agent-api','engineering'):
-        for source in (ROOT/'server').rglob('*.py'):
-            mapping[ROOT/'apps'/name/'server'/source.relative_to(ROOT/'server')]=source
+    services = {
+        'agent-api': python_closure('cloud_entry', 'vercel_start'),
+        # native_entry dispatches these operation modules by string.
+        'engineering': python_closure('native_entry', 'native_job', 'drawing', 'evidence',
+                                      'cad_import', 'cad_artifacts', 'dwg_converter'),
+    }
+    for name,sources in services.items():
+        for source in sources:
+            mapping[ROOT/'apps'/name/'server'/source.name]=source
     for name in ('requirements.txt','requirements-cloud.txt'):
         mapping[ROOT/'apps/agent-api'/name]=ROOT/name
     mapping[ROOT/'apps/engineering/scripts/cloud_native_smoke.py']=ROOT/'scripts/cloud_native_smoke.py'

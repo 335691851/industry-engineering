@@ -1,5 +1,5 @@
 fastapi>=0.115,<1
-uvicorn[standard]>=0.34,<1
+uvicorn>=0.34,<1
 python-multipart>=0.0.20,<1
 openai>=1.75,<3
 pymupdf>=1.25,<2

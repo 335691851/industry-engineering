@@ -118,6 +118,23 @@ python scripts/sync_hobby_projects.py --check
 
 测试数量会随代码变化，不在部署文档中固化。提交前按仓库 README 的验证命令执行；真实云端模型质量、容器内存占用、Linux 原生组件兼容性仍须在当前部署上验收。
 
+### Deployment Storage 控制
+
+Hobby 团队的 Deployment Storage 总额为 10 GB。该指标累计仍被保留的历史 Deployment 内的函数镜像，并不是 Supabase 业务文件，也不是函数运行期间的临时目录。`engineering` 含 OCR、OpenCascade 和 LibreDWG，单次部署显著大于 `agent-api`；连续重部署会首先在这里体现。
+
+本仓库对镜像做以下约束：
+
+- `agent-api` 使用普通 uvicorn，不携带生产环境不需要的 uvloop、watchfiles 等附加包，并清理第三方包测试目录。
+- `engineering` 直接使用无 VTK 的 OpenCascade/OCP，不安装 build123d 引入的 SciPy、scikit-learn、IPython 等间接依赖。
+- RapidOCR 显式使用 headless OpenCV；运行镜像不安装 Xvfb、X11/GL 图形栈。
+- LibreDWG 使用多阶段编译，运行镜像仅保留裁剪后的命令和许可证；编译源码、头文件、静态开发库不进入最终层。
+- 两个项目的 `.dockerignore` 采用允许清单，避免把部署无关文件送入容器构建上下文。
+- 同步脚本按服务入口计算 Python 相对导入闭包；Engineering 不再复制 Agent、会话和模型模块，Agent 的编排改动不会无条件重建大型原生镜像。
+
+Vercel 项目还需要在 **Settings → Security → Deployment Retention Policy** 设置：Canceled 7 天、Errored 7 天、Preview 30 天、Production 30 天。策略清理不是即时执行；存储已经满时，在 Deployments 中手动删除两个项目的旧 Preview、失败部署和已经被新版本替换的 Production，只保留当前带 Production alias 的版本及确有回滚价值的最近版本。不要删除当前 Production alias 指向的 Deployment。
+
+三个项目连接同一仓库时必须保留 Root Directory 的“无目录变更则跳过部署”设置。代码变更后只提交实际变化的 `apps/<project>` 副本，避免仅修改文档或前端时重建大型工程镜像。
+
 ## 6. 限制与更新
 
 - Hobby 官方只允许个人非商业用途。多个项目不改变此范围。
