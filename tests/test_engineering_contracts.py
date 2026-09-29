@@ -142,6 +142,33 @@ def test_conversation_parameter_tool_uses_same_validation(project):
     assert result['geometry']['approval_status']=='pending'
 
 
+def test_stage_generation_has_deterministic_commit_boundary(project, monkeypatch):
+    """A provider text response must not be able to skip the stage commit."""
+    current = db.project_bundle(project)
+    part = next(item for item in current['parts'] if item['id'] == 'leaf')
+    calls = []
+
+    def fail_if_specialist_is_used(*_args, **_kwargs):
+        raise AssertionError('stage generation must not depend on a second tool-selection turn')
+
+    def commit_drawing(fresh_project, fresh_part, instruction):
+        calls.append(('drawing', fresh_project['id'], fresh_part['id'], instruction))
+        return {'output': 'drawing', 'object_id': fresh_part['id']}
+
+    def commit_process(fresh_project, fresh_part, instruction):
+        calls.append(('process', fresh_project['id'], fresh_part['id'], instruction))
+        return {'output': 'process', 'object_id': fresh_part['id']}
+
+    monkeypatch.setattr(agent, '_invoke_specialist', fail_if_specialist_is_used)
+    monkeypatch.setattr(agent, '_commit_part_drawing', commit_drawing)
+    monkeypatch.setattr(agent, '_commit_process', commit_process)
+
+    assert agent._save_part_drawing(current, part, '使用已保存参数')['output'] == 'drawing'
+    assert agent._save_process(current, part, '生成核心工艺')['output'] == 'process'
+    assert calls == [('drawing', 'p', 'leaf', '使用已保存参数'),
+                     ('process', 'p', 'leaf', '生成核心工艺')]
+
+
 def test_cad_load_edit_native_dimensions_save_and_preserve_entities(project, tmp_path, monkeypatch):
     from server import cad_editor
     monkeypatch.setattr(cad_editor, 'convert_dwg', lambda _: None)

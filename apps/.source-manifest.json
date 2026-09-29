@@ -1,5 +1,5 @@
 {
-  "apps/agent-api/server/agent.py": "127c338e1914f9cd59c9fbe75d8ca2c3faaebf23eccbe6c5ac22514aec55dccd",
+  "apps/agent-api/server/agent.py": "04d71f5345570f72fbd37979e0d9cb5a7fadc59e45c69f8624e4e209d6b482ab",
   "apps/agent-api/server/ai.py": "0a832dedd758e783a87deca0d65874d3562b9021f4bd12562a686f6d75a1cd8f",
   "apps/agent-api/server/cad_artifacts.py": "31751df6dd8c38fb46b5285f8b46e5448ec4af307d140695e6801d963afc1215",
   "apps/agent-api/server/cad_editor.py": "e4910bf5b86cbc742157181951383776d41e9cf194bbf05013695e5242c28ebe",
@@ -41,7 +41,7 @@
   "apps/agent-api/server/vercel_start.py": "c35d971b70cd63fa4ececdcb24984b21a4d8b0ed9eeeebac2b1049cdfff72acb",
   "apps/agent-api/server/workflow.py": "0add901fc76c65b217efe430b12cf1d7ceb51b6057aacccfb48f646973c0e28e",
   "apps/agent-api/server/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-  "apps/engineering/server/agent.py": "127c338e1914f9cd59c9fbe75d8ca2c3faaebf23eccbe6c5ac22514aec55dccd",
+  "apps/engineering/server/agent.py": "04d71f5345570f72fbd37979e0d9cb5a7fadc59e45c69f8624e4e209d6b482ab",
   "apps/engineering/server/ai.py": "0a832dedd758e783a87deca0d65874d3562b9021f4bd12562a686f6d75a1cd8f",
   "apps/engineering/server/cad_artifacts.py": "31751df6dd8c38fb46b5285f8b46e5448ec4af307d140695e6801d963afc1215",
   "apps/engineering/server/cad_editor.py": "e4910bf5b86cbc742157181951383776d41e9cf194bbf05013695e5242c28ebe",

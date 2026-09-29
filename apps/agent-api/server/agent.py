@@ -138,82 +138,30 @@ def _invoke_specialist(name, prompt, tools, message, recursion_limit=12):
 
 
 def _save_part_drawing(project, part, instruction):
-    """Run an independent drawing Agent; only its commit tool may persist output."""
-    results = []
+    """Run the drawing Agent pipeline with a deterministic commit boundary.
 
-    @tool
-    def inspect_drawing_task() -> str:
-        """读取当前制图步骤的对象语义、MBOM 边界、已有参数和用户修改要求。"""
-        return json.dumps({
-            'project': {'id': project['id'], 'name': project['name'], 'drawing_no': project['drawing_no']},
-            'part': {k: part.get(k) for k in ('id', 'name', 'drawing_no', 'kind', 'material', 'geometry', 'specifications')},
-            'mbom_links': project.get('mbom_links', []), 'instruction': instruction,
-            'step_contract': prompt_block('drawing', project, part, instruction),
-        }, ensure_ascii=False)[:16000]
-
-    @tool
-    def generate_and_commit_drawing() -> str:
-        """按当前任务生成、校验、导出并保存图纸草案。必须在检查制图任务后调用一次。"""
-        try:
-            result = _commit_part_drawing(project_bundle(project['id']), require_part_for_agent(part['id']), instruction)
-            results.append(result)
-            return json.dumps(result, ensure_ascii=False)
-        except Exception as exc:
-            return json.dumps({'error': str(exc)[:400]}, ensure_ascii=False)
-
-    prompt = ai.ENGINEERING_RULES + '''
-你是独立的机械制图 Agent。你的任务是完成当前对象的制造图草案，而不是一般问答。
-先调用 inspect_drawing_task 检查对象语义、MBOM 边界、证据和用户要求，再调用 generate_and_commit_drawing。
-工具会执行视觉解析、工业技能路由、几何校验和文件导出。若工具返回错误，说明错误，禁止声称已经生成。
-单件不得混入其他对象；子装配图必须读取已审核下级几何及接口表达本组件。'''
-    _invoke_specialist('drawing-engineering-agent', prompt,
-                       [inspect_drawing_task, generate_and_commit_drawing],
-                       f'为 {part["name"]} 执行制图任务。工程师要求：{instruction}')
-    if not results:
-        raise RuntimeError('制图 Agent 未提交有效图纸结果')
-    return results[-1]
+    The route already identifies the user's intent and target.  Letting another
+    chat turn decide whether to call the only commit tool made successful runs
+    depend on provider tool-call behaviour.  The engineering model still plans
+    the drawing in ``ai.draft_part``; this harness guarantees that validation,
+    export and persistence are executed exactly once.
+    """
+    fresh_project = project_bundle(project['id'])
+    fresh_part = require_part_for_agent(part['id'])
+    if not fresh_project or fresh_part['project_id'] != fresh_project['id']:
+        raise ValueError('制图对象已失效，请刷新项目后重试')
+    return _commit_part_drawing(fresh_project, fresh_part, instruction)
 
 
 def _save_process(project, part, instruction):
-    """Run an independent process-planning Agent; only its commit tool persists output."""
-    results = []
-    target_name = part['name'] if part else project['name']
-
-    @tool
-    def inspect_process_task() -> str:
-        """读取当前工艺步骤的对象、已审核图纸、直接下级、技术要求和用户修改要求。"""
-        fresh = project_bundle(project['id'])
-        current = next((item for item in fresh['parts'] if part and item['id'] == part['id']), None) if part else None
-        step = 'assembly_process' if current is None or any(link['parent_id'] == current['id'] for link in fresh.get('mbom_links', [])) else 'part_process'
-        return json.dumps({
-            'project': {'id': fresh['id'], 'name': fresh['name'], 'drawing_no': fresh['drawing_no']},
-            'target': current or {'id': fresh['id'], 'name': fresh['name'], 'kind': '装配体'},
-            'mbom_links': fresh.get('mbom_links', []), 'instruction': instruction,
-            'step_contract': prompt_block(step, fresh, current, instruction),
-        }, ensure_ascii=False)[:18000]
-
-    @tool
-    def generate_and_commit_process() -> str:
-        """按当前任务生成、校验、导出并保存工艺草案。必须在检查工艺任务后调用一次。"""
-        try:
-            fresh = project_bundle(project['id'])
-            current = next((item for item in fresh['parts'] if part and item['id'] == part['id']), None) if part else None
-            result = _commit_process(fresh, current, instruction)
-            results.append(result)
-            return json.dumps(result, ensure_ascii=False)
-        except Exception as exc:
-            return json.dumps({'error': str(exc)[:400]}, ensure_ascii=False)
-
-    prompt = ai.ENGINEERING_RULES + '''
-你是独立的制造工艺 Agent。先调用 inspect_process_task 判断当前对象是单件、子装配还是总装，
-并确认上一步审核结果及直接下级输入；随后调用 generate_and_commit_process 生成、校验、导出并保存工艺草案。
-不得越过图纸审核，不得把下级零件完整机加工路线复制进装配工艺。工具报错时禁止声称成功。'''
-    _invoke_specialist('process-engineering-agent', prompt,
-                       [inspect_process_task, generate_and_commit_process],
-                       f'为 {target_name} 执行工艺规划任务。工程师要求：{instruction}')
-    if not results:
-        raise RuntimeError('工艺 Agent 未提交有效工艺结果')
-    return results[-1]
+    """Run the process Agent pipeline without an optional tool-call hop."""
+    fresh = project_bundle(project['id'])
+    if not fresh:
+        raise ValueError('项目不存在')
+    current = next((item for item in fresh['parts'] if part and item['id'] == part['id']), None) if part else None
+    if part and current is None:
+        raise ValueError('工艺对象已失效，请刷新项目后重试')
+    return _commit_process(fresh, current, instruction)
 
 
 def require_part_for_agent(part_id):

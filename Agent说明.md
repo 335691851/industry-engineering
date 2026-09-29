@@ -110,13 +110,13 @@ Python 依赖使用版本范围，未全部精确锁版本。下述框架默认�
 |---|---|---|---|
 | `engineering-copilot` | `run_chat` | 第 5 节的 10 个业务工具 | 有 checkpoint；递归限制 16 |
 | `mbom-engineering-agent` | `refine_mbom` | `inspect_assembly_reference`、`submit_mbom` | 局部提交结果；限制 18 |
-| `drawing-engineering-agent` | `_save_part_drawing` | `inspect_drawing_task`、`generate_and_commit_drawing` | 单次专业实例；默认限制 12 |
-| `process-engineering-agent` | `_save_process` | `inspect_process_task`、`generate_and_commit_process` | 单件/子装配/总装共用；默认限制 12 |
+| `drawing-engineering-agent` | `_save_part_drawing` | 阶段门、`ai.draft_part`、几何校核、CAD/PDF 导出、原子提交 | 确定性专业流水线；结构化模型生成一次 |
+| `process-engineering-agent` | `_save_process` | 阶段门、`ai.draft_process`、工艺校核、PDF/XLSX 导出、原子提交 | 单件/子装配/总装共用的确定性专业流水线 |
 | `engineering-workflow-orchestrator` | `run_batch_workflow` | `inspect_workflow_plan`、`execute_next_unlocked_stage` | 单次编排实例；限制 14 |
 
-制图和工艺 Agent 先读取任务，然后调用提交工具。提交工具内部再次调用 `ai.draft_part` 或 `ai.draft_process` 进行 JSON 内容生成。因此一次生成可能包含多次模型请求：工具选择、专业 Agent 检查、结构化生成、证据补定位、结果总结。不是五个不同训练模型，也不是五个服务进程。
+制图和工艺阶段采用确定性的专业 Agent harness：API 已经确定用户意图和目标对象后，程序按固定顺序执行阶段门检查、专业结构化生成、规则校核、文件导出和原子保存。`ai.draft_part` 与 `ai.draft_process` 仍由模型结合证据和行业契约完成专业规划，但不会再增加一次“让模型决定是否调用唯一提交工具”的冗余模型请求。这避免兼容 OpenAI 接口的模型只回复文字而未发出 tool call，也减少 Vercel Hobby 函数的时间消耗。
 
-专业 Agent 必须产生有效工具提交结果，才被应用视为生成成功。工具错误会返回 `error`，没有结果则抛出“未提交有效结果”。目前“先检查再提交”的次序主要由提示词约束；生成前置条件、状态门和保存规则则由 Python 强制执行。
+生成前置条件、状态门、校核、保存和错误传播全部由 Python 强制执行。模型负责处理存在判断空间的工程语义，程序负责保证每个已授权阶段必然进入执行链，不能以一段文字冒充已生成结果。
 
 ## 5. 工程会话：意图识别、工具权限和反馈
 
@@ -171,8 +171,8 @@ Python 依赖使用版本范围，未全部精确锁版本。下述框架默认�
 
 ```text
 按钮生成或对话工具
-→ _save_part_drawing（制图 Agent）
-→ _commit_part_drawing
+→ _save_part_drawing（确定性制图 Agent harness）
+→ 刷新项目与对象快照 → _commit_part_drawing
 → MBOM、直接下级、参考输入门检查
 → ai.draft_part：视觉与工程契约生成 JSON
 → 覆盖人工锁定参数
@@ -188,8 +188,8 @@ Python 依赖使用版本范围，未全部精确锁版本。下述框架默认�
 
 ```text
 图纸人工审核通过
-→ _save_process（工艺 Agent）
-→ _commit_process
+→ _save_process（确定性工艺 Agent harness）
+→ 刷新项目与对象快照 → _commit_process
 → 校验图纸/下级审核
 → ai.draft_process（按单件、子装配、根装配选择契约）
 → check_process + pending_process
