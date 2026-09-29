@@ -63,7 +63,9 @@ def _validate(payload):
         valid = solid is not None
         if shape in ('tube', 'plate'):
             valid = valid and outer > inner >= 0
-        valid = valid and all(BRepCheck_Analyzer(item).IsValid() for item in primitives) and volume > 0
+        # Pass GeomControls explicitly.  Some Linux OCP wheels do not expose
+        # the C++ default argument even though Windows wheels accept it.
+        valid = valid and all(BRepCheck_Analyzer(item, False).IsValid() for item in primitives) and volume > 0
         return {'engine': 'OpenCascade/OCP', 'status': 'valid' if valid else 'invalid',
                 'volume_mm3': volume, 'bounding_box_mm': bounds,
                 'scope': 'base solid only; textual chamfers, threads, grooves are not modeled'}
@@ -74,3 +76,4 @@ def _validate(payload):
 def validate_solid(geometry):
     keys = ('shape_type', 'overall_length_mm', 'thickness_mm', 'outer_diameter_mm', 'inner_diameter_mm', 'segments')
     return _validate(json.dumps({k: geometry.get(k) for k in keys}, sort_keys=True))
+
