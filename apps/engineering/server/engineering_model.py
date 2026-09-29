@@ -25,7 +25,7 @@ def build_model(geometry, part):
                            'overall_length_mm':'length_tolerance'}.get(field)
         dimensions.append({'id': field, 'value': value, 'unit': 'mm', 'state': 'part_delivery',
                            'tolerance': g.get(tolerance_field, '') if tolerance_field else '',
-                           'source': source, 'basis': 'user' if overridden else 'model_extraction',
+                           'source': source, 'basis': 'user' if overridden else ('engineering_derivation' if source.get('method') in ('derived', 'rule') else 'model_extraction'),
                            'verified': overridden,
                            'reference': field == 'outer_diameter_mm' and bool(g.get('outer_reference'))})
     plan = g['manufacturing']
@@ -33,7 +33,10 @@ def build_model(geometry, part):
     errors += [f"{d['id']} 引用了非交付状态尺寸，请核对原料/装配后尺寸归属" for d in dimensions
                if not d['verified'] and d['source'].get('state') in ('stock', 'post_assembly')]
     warnings = [f"{d['id']} 缺少图纸定位依据" for d in dimensions
-                if not d['verified'] and not d['source'].get('token_ids')]
+                if not d['verified'] and d['source'].get('method') not in ('derived', 'rule')
+                and not d['source'].get('token_ids')]
+    warnings += [f"{d['id']} 为工程推导候选，须在审核时确认计算输入和适用性" for d in dimensions
+                 if d['basis'] == 'engineering_derivation']
     warnings += [a['warning'] for a in plan['allowances'] if a.get('warning')]
     zones = g.get('machining_zones') or []
     length = g.get('overall_length_mm')

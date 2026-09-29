@@ -167,17 +167,20 @@ def ground_dimensions(result, packet):
         if not isinstance(requested, list):
             requested = []
         refs = [index[v] for v in requested if isinstance(v,str) and v in index]
+        derived = source.get('method') in ('derived', 'rule')
         item = dict(source, token_ids=[r['id'] for r in refs], file_sha256=packet['sha256'],
                     locations=[{'page':r['page'],'bbox':r['bbox'],'text':r['text'],
                                 'method':r['method'],'confidence':r.get('confidence')} for r in refs],
                     verified=False)
         issues = []
-        if len(refs) != len(requested) or not refs:
+        if not derived and (len(refs) != len(requested) or not refs):
             issues.append('缺少有效原图引用')
+        if derived and (not source.get('derivation') or not source.get('confidence')):
+            issues.append('工程推导缺少输入约束、计算关系或置信度')
         if refs and source.get('page') not in {r['page'] for r in refs}:
             issues.append('引用页码与实际位置不一致')
         value = dimension_value(result, field)
-        if isinstance(value, (int,float)) and not isinstance(value,bool) and refs:
+        if not derived and isinstance(value, (int,float)) and not isinstance(value,bool) and refs:
             numbers = []
             for ref in refs:
                 # Common drawing OCR confusion: chamfer prefix C0.5 is often

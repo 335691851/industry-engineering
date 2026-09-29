@@ -101,11 +101,16 @@ def workflow_state(project, part):
     from .manufacturing import geometry_blockers, prepare_manufacturing
     ready, children = children_ready(project, part['id'])
     mbom = project.get('stage') in {'MBOM已确认', '草案待审核', '已归档'}
+    blockers = geometry_blockers(part.get('geometry') or {})
+    drawing_exists = bool(part.get('drawing_pdf'))
     return {'mbom_approved': mbom, 'children_ready': ready,
             'waiting_children': [p['name'] for p in children if not (reference_approved(p) and drawing_approved(p) and process_approved(p))],
             'can_generate_drawing': mbom and ready and reference_approved(part),
             'can_generate_process': mbom and ready and reference_approved(part) and drawing_approved(part),
-            'drawing_blockers': geometry_blockers(part.get('geometry') or {}),
+            # Missing draft geometry is input to the drawing Agent.  Once an
+            # artifact exists the same findings become approval blockers.
+            'drawing_blockers': blockers if drawing_exists else [],
+            'drawing_preflight': blockers if not drawing_exists else [],
             'drawing_warnings': [a['warning'] for a in prepare_manufacturing(part.get('geometry') or {})['manufacturing']['allowances'] if a.get('warning')],
             'reference_approved': reference_approved(part), 'drawing_approved': drawing_approved(part),
             'process_approved': process_approved(part)}
