@@ -39,11 +39,14 @@ def run(name, arguments, folder):
     # File logging avoids unbounded captured stdout/stderr on a malformed drawing.
     log=Path(folder)/(name+'.log')
     try:
+        # Leave time for the caller to publish an already completed PDF/DXF if
+        # a converter build stalls on a layout or annotation entity.
+        timeout = max(5, min(90, int(os.getenv('LIBREDWG_TIMEOUT_SECONDS', '90'))))
         with log.open('wb') as stream:
             result=subprocess.run([str(exe),*arguments],cwd=folder,stdout=stream,stderr=stream,
-                                  timeout=90,check=False)
+                                  timeout=timeout,check=False)
     except subprocess.TimeoutExpired as exc:
-        raise ConversionError('LibreDWG 转换超过 90 秒，已停止；原文件未修改') from exc
+        raise ConversionError(f'LibreDWG 转换超过 {timeout} 秒，已停止；原文件未修改') from exc
     if result.returncode:
         raise ConversionError(f'LibreDWG {name} 转换失败（退出码 {result.returncode}），原文件未修改')
     return log.stat().st_size>0

@@ -88,6 +88,23 @@ def test_native_health_reports_storage_configuration(monkeypatch):
     assert response.json()['status']=='misconfigured'
     assert set(response.json()['missing'])=={'SUPABASE_URL','SUPABASE_SECRET_KEY'}
 
+
+def test_native_job_failure_is_specific_and_traceable(monkeypatch):
+    monkeypatch.setenv('ENGINEERING_SERVICE_TOKEN','a'*32)
+    monkeypatch.setenv('SUPABASE_URL','https://storage.test')
+    monkeypatch.setenv('SUPABASE_SECRET_KEY','test-secret')
+    async def fail(_):
+        raise native_entry.NativeJobError('TypeError', '尺寸数据无法转换', 'private traceback')
+    monkeypatch.setattr(native_entry,'supervised',fail)
+    response=TestClient(native_entry.app).post('/execute',headers={
+        'Authorization':'Bearer '+'a'*32,'X-Engineering-Owner':USER},
+        json={'operation':'drawing','input':'object://input'})
+    assert response.status_code==422
+    body=response.json()
+    assert body['code']=='NATIVE_OPERATION_FAILED'
+    assert 'TypeError' in body['detail'] and '尺寸数据无法转换' in body['detail']
+    assert len(body['reference'])==12
+
 def test_durable_model_preserves_tool_call_ids(monkeypatch,tmp_path):
     from langchain_core.messages import AIMessage,HumanMessage
     from langchain_core.outputs import ChatResult,ChatGeneration

@@ -159,6 +159,21 @@ def test_exports_share_all_notes_and_sheet_count(tmp_path):
     assert any('29' in e.dxf.text for layout in sheets for e in layout.query('TEXT'))
 
 
+def test_optional_dwg_failure_preserves_pdf_and_dxf(monkeypatch, tmp_path):
+    part = {'id': 'shaft', 'project_id': 'project', 'name': '测试轴',
+            'drawing_no': 'QA-SHAFT', 'material': '45', 'geometry': {
+                'shape_type': 'rotational', 'overall_length_mm': 100,
+                'segments': [{'length_mm': 100, 'diameter_mm': 30}]}}
+    monkeypatch.setattr(drawing, 'FILES', tmp_path)
+    monkeypatch.setattr(drawing, 'convert_dwg',
+                        lambda *_: (_ for _ in ()).throw(ValueError('round-trip rejected')))
+    result = drawing.export_drawing(part)
+    assert Path(result['drawing_pdf']).is_file()
+    assert Path(result['drawing_dxf']).is_file()
+    assert result['drawing_dwg'] == ''
+    assert 'ValueError' in result['dwg_warning']
+
+
 def test_conversation_parameter_tool_uses_same_validation(project):
     tool = next(t for t in agent._tools(project,'leaf') if t.name=='update_part_parameters')
     result = json.loads(tool.invoke({'patch_json':json.dumps({'geometry':{'outer_diameter_mm':54}})}))

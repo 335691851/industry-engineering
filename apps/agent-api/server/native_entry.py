@@ -14,6 +14,13 @@ app=FastAPI()
 
 REQUIRED_STORAGE=('SUPABASE_URL','SUPABASE_SECRET_KEY')
 
+
+class NativeJobError(RuntimeError):
+    def __init__(self, error_type, message, traceback_text=''):
+        self.error_type = str(error_type or 'NativeJobError')[:80]
+        self.traceback_text = str(traceback_text or '')[-6000:]
+        super().__init__(str(message or '工程子进程执行失败')[:500])
+
 async def supervised(body):
     import asyncio,sys,signal
     folder=Path(workspace.get())
@@ -21,17 +28,24 @@ async def supervised(body):
     source.write_text(json.dumps(body),encoding='utf-8')
     options={'start_new_session':True} if os.name!='nt' else {}
     process=await asyncio.create_subprocess_exec(sys.executable,'-m','server.native_job',
-        owner_id.get(),str(folder),str(source),str(result),**options)
+        owner_id.get(),str(folder),str(source),str(result),
+        stdout=asyncio.subprocess.PIPE,stderr=asyncio.subprocess.PIPE,**options)
     try:
-        await asyncio.wait_for(process.wait(),100)
+        stdout,stderr=await asyncio.wait_for(process.communicate(),100)
     except (TimeoutError,asyncio.CancelledError):
         if process.returncode is None:
             if os.name!='nt': os.killpg(process.pid,signal.SIGKILL)
             else: process.kill()
             await process.wait()
         raise ValueError('单个工程文件任务超时，请拆分图纸')
-    if process.returncode or not result.is_file(): raise ValueError('工程子进程失败')
-    return json.loads(result.read_text(encoding='utf-8'))
+    if process.returncode or not result.is_file():
+        diagnostic=(stderr or stdout or b'').decode('utf-8','replace')[-4000:]
+        raise NativeJobError('ProcessExit',f'工程子进程异常退出（code={process.returncode}）',diagnostic)
+    envelope=json.loads(result.read_text(encoding='utf-8'))
+    if isinstance(envelope,dict) and envelope.get('ok') is False:
+        failure=envelope.get('error') or {}
+        raise NativeJobError(failure.get('type'),failure.get('message'),failure.get('traceback'))
+    return envelope.get('result') if isinstance(envelope,dict) and envelope.get('ok') is True else envelope
 
 # Resolve lazily: importing a health route must not load OCR/OpenCascade.
 OPERATIONS={
@@ -109,16 +123,26 @@ async def execute(request:Request):
             return await supervised(body)
         except Exception as exc:
             import logging
-            logging.exception('Native operation failed: %s',body['operation'])
+            reference=uuid.uuid4().hex[:12]
+            if isinstance(exc,NativeJobError):
+                logging.error('Native operation failed: operation=%s reference=%s type=%s message=%s\n%s',
+                              body['operation'],reference,exc.error_type,str(exc),exc.traceback_text)
+            else:
+                logging.exception('Native operation failed: operation=%s reference=%s',body['operation'],reference)
             if isinstance(exc, FileNotFoundError):
                 code,detail='NATIVE_INPUT_NOT_FOUND','工程输入文件不存在或已过期'
             elif isinstance(exc, KeyError) and exc.args and str(exc.args[0]).startswith('SUPABASE_'):
                 code,detail='NATIVE_STORAGE_CONFIG_MISSING','engineering 缺少 Supabase 存储环境变量'
             elif '私有文件存储失败' in str(exc):
                 code,detail='NATIVE_STORAGE_ACCESS_FAILED','engineering 无法读写 Supabase 私有文件，请检查 URL、Secret Key 和 Storage Bucket'
+            elif isinstance(exc,NativeJobError):
+                code='NATIVE_OPERATION_FAILED'
+                detail=f'工程文件生成失败（{exc.error_type}）：{str(exc)}'
+            elif '超时' in str(exc):
+                code,detail='NATIVE_OPERATION_TIMEOUT',str(exc)
             else:
-                code,detail='NATIVE_OPERATION_FAILED','工程文件子进程失败，请查看 engineering Runtime Logs'
-            return JSONResponse({'detail':detail,'code':code,'reference':uuid.uuid4().hex[:12]},status_code=422)
+                code,detail='NATIVE_OPERATION_FAILED','工程文件处理失败，请查看 engineering Runtime Logs'
+            return JSONResponse({'detail':detail[:300],'code':code,'reference':reference},status_code=422)
         finally: workspace.reset(work); owner_id.reset(token)
 
 if __name__=='__main__':

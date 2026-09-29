@@ -95,8 +95,10 @@ def export_drawing(part):
     if complete:
         try:
             dwg = convert_dwg(dxf)
-        except (ConversionError, OSError) as exc:
-            warning = str(exc)
+        except Exception as exc:
+            # PDF and DXF are the authoritative generated artifacts. LibreDWG
+            # is an optional compatibility export and must not discard them.
+            warning = f'DWG 附加导出失败（{type(exc).__name__}）：{exc}'
     return {'drawing_pdf': str(pdf), 'drawing_dxf': str(dxf) if complete else '', 'drawing_dwg': str(dwg) if dwg else '',
             'dwg_warning': warning, 'drawing_standard': drawing_standard_payload(), 'drawing_validation': validate_geometry(part)}
 

@@ -13,7 +13,7 @@ RUN curl -fL --retry 3 https://github.com/LibreDWG/libredwg/releases/download/0.
 
 FROM python:3.12-slim-bookworm
 COPY --from=libredwg /opt/libredwg /opt/libredwg
-ENV LIBREDWG_BIN=/opt/libredwg/bin
+ENV LIBREDWG_BIN=/opt/libredwg/bin LIBREDWG_TIMEOUT_SECONDS=15
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ENGINEERING_RUNTIME=cloud ENGINEERING_SERVICE_ROLE=engineering PORT=80 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 QT_QPA_PLATFORM=offscreen
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libgl1 libgomp1 libxrender1 libsm6 libxext6 libxcb1 xvfb xauth fonts-noto-cjk \
