@@ -45,6 +45,49 @@ def request(method, key, content=None):
     return response.content
 
 
+def _headers():
+    secret = os.environ['SUPABASE_SECRET_KEY']
+    result = {'apikey': secret, 'Content-Type': 'application/json'}
+    if secret.startswith('eyJ'):
+        result['Authorization'] = f'Bearer {secret}'
+    return result
+
+
+def clear_owner_objects():
+    """Delete every Storage object below the authenticated owner's prefix."""
+    bucket = os.environ.get('SUPABASE_STORAGE_BUCKET', 'engineering-private')
+    base = os.environ['SUPABASE_URL'].rstrip('/') + '/storage/v1/object'
+    folders = [owner()]
+    files = []
+    while folders:
+        folder = folders.pop()
+        offset = 0
+        while True:
+            response = httpx.post(
+                base + '/list/' + quote(bucket, safe=''), headers=_headers(),
+                json={'prefix': folder, 'limit': 1000, 'offset': offset,
+                      'sortBy': {'column': 'name', 'order': 'asc'}}, timeout=30)
+            if not response.is_success:
+                raise RuntimeError(f'私有文件清单读取失败（HTTP {response.status_code}）')
+            entries = response.json()
+            for item in entries:
+                name = str(item.get('name', '')).strip('/')
+                if not name: continue
+                path = folder + '/' + name
+                if item.get('id') or item.get('metadata') is not None:
+                    files.append(path)
+                else:
+                    folders.append(path)
+            if len(entries) < 1000: break
+            offset += len(entries)
+    for start in range(0, len(files), 1000):
+        response = httpx.request('DELETE', base + '/' + quote(bucket, safe=''), headers=_headers(),
+                                 json={'prefixes': files[start:start + 1000]}, timeout=90)
+        if not response.is_success:
+            raise RuntimeError(f'私有文件删除失败（HTTP {response.status_code}）')
+    return len(files)
+
+
 def publish(path):
     path = Path(path)
     key = object_key(path)

@@ -264,6 +264,12 @@ def list_projects():
                             GROUP BY p.id ORDER BY p.created_at DESC''')
 
 
+@app.delete('/api/business-data')
+def delete_business_data():
+    from .data_reset import clear_business_data
+    return clear_business_data()
+
+
 @app.get('/api/projects/{project_id}')
 def get_project(project_id: str):
     return require_project(project_id)
