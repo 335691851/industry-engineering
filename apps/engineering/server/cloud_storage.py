@@ -3,6 +3,7 @@ import hashlib
 import json
 import mimetypes
 import os
+from contextvars import ContextVar
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -11,6 +12,7 @@ import httpx
 from .cloud_context import owner, workspace
 
 PREFIX = 'object://'
+storage_proxy = ContextVar('engineering_storage_proxy', default='')
 
 
 def root():
@@ -29,6 +31,23 @@ def object_key(path):
 def request(method, key, content=None):
     if not key.startswith(owner() + '/') or '..' in PurePosixPath(key).parts:
         raise PermissionError('不能访问其他用户的工程文件')
+    proxy = storage_proxy.get()
+    if proxy:
+        if not proxy.startswith('https://') or not proxy.rstrip('/').endswith('/api/internal/native-storage'):
+            raise PermissionError('工程文件代理地址无效')
+        headers = {
+            'Authorization': 'Bearer ' + os.environ['ENGINEERING_SERVICE_TOKEN'],
+            'X-Engineering-Owner': owner(),
+        }
+        if content is not None:
+            headers['Content-Type'] = mimetypes.guess_type(key)[0] or 'application/octet-stream'
+        response = httpx.request(method, proxy, params={'key': key}, headers=headers,
+                                 content=content, timeout=90)
+        if response.status_code == 404:
+            raise FileNotFoundError('工程对象不存在')
+        if not response.is_success:
+            raise RuntimeError(f'私有文件代理失败（HTTP {response.status_code}）')
+        return response.content
     bucket = os.environ.get('SUPABASE_STORAGE_BUCKET', 'engineering-private')
     url = os.environ['SUPABASE_URL'].rstrip('/') + '/storage/v1/object/' + quote(bucket, safe='') + '/' + quote(key, safe='/')
     secret = os.environ['SUPABASE_SECRET_KEY']

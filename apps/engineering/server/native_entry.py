@@ -67,32 +67,36 @@ def dwg_read(path):
 
 def perform(body):
     import importlib
-    from .cloud_storage import root, materialize, publish, transform
-    source=Path(materialize(body['input']))
-    if source.stat().st_size>32*1024*1024: raise ValueError('工程任务输入过大')
-    payload=json.loads(source.read_text(encoding='utf-8'))
-    def decode(v):
-        if isinstance(v,dict) and set(v)=={'$file'}: return Path(materialize(v['$file']))
-        if isinstance(v,dict) and set(v)=={'$output'}:
-            path=(root()/v['$output']).resolve()
-            if not path.is_relative_to(root().resolve()): raise PermissionError('输出路径无效')
-            path.parent.mkdir(parents=True,exist_ok=True)
-            return path
-        if isinstance(v,dict): return {k:decode(x) for k,x in v.items()}
-        if isinstance(v,list): return [decode(x) for x in v]
-        return transform(v,downloading=True)
-    module,name=OPERATIONS[body['operation']]
-    fn=getattr(importlib.import_module('server.'+module),name)
-    result=fn(*decode(payload['args']),**decode(payload['kwargs']))
-    def encode(v):
-        if isinstance(v,Path): return {'$file':publish(v)}
-        if isinstance(v,dict): return {k:encode(x) for k,x in v.items()}
-        if isinstance(v,(list,tuple)): return [encode(x) for x in v]
-        return transform(v)
-    target=root()/'rpc'/f'{uuid.uuid4().hex}-output.json'
-    target.parent.mkdir(parents=True,exist_ok=True)
-    target.write_text(json.dumps(encode(result),ensure_ascii=False),encoding='utf-8')
-    return {'output':publish(target)}
+    from .cloud_storage import root, materialize, publish, transform, storage_proxy
+    proxy_token=storage_proxy.set(str(body.get('storage_proxy') or ''))
+    try:
+        source=Path(materialize(body['input']))
+        if source.stat().st_size>32*1024*1024: raise ValueError('工程任务输入过大')
+        payload=json.loads(source.read_text(encoding='utf-8'))
+        def decode(v):
+            if isinstance(v,dict) and set(v)=={'$file'}: return Path(materialize(v['$file']))
+            if isinstance(v,dict) and set(v)=={'$output'}:
+                path=(root()/v['$output']).resolve()
+                if not path.is_relative_to(root().resolve()): raise PermissionError('输出路径无效')
+                path.parent.mkdir(parents=True,exist_ok=True)
+                return path
+            if isinstance(v,dict): return {k:decode(x) for k,x in v.items()}
+            if isinstance(v,list): return [decode(x) for x in v]
+            return transform(v,downloading=True)
+        module,name=OPERATIONS[body['operation']]
+        fn=getattr(importlib.import_module('server.'+module),name)
+        result=fn(*decode(payload['args']),**decode(payload['kwargs']))
+        def encode(v):
+            if isinstance(v,Path): return {'$file':publish(v)}
+            if isinstance(v,dict): return {k:encode(x) for k,x in v.items()}
+            if isinstance(v,(list,tuple)): return [encode(x) for x in v]
+            return transform(v)
+        target=root()/'rpc'/f'{uuid.uuid4().hex}-output.json'
+        target.parent.mkdir(parents=True,exist_ok=True)
+        target.write_text(json.dumps(encode(result),ensure_ascii=False),encoding='utf-8')
+        return {'output':publish(target)}
+    finally:
+        storage_proxy.reset(proxy_token)
 
 @app.get('/health')
 def health():
@@ -112,7 +116,7 @@ async def execute(request:Request):
     if len(raw)>10000: return JSONResponse({'detail':'request too large'},status_code=413)
     body=json.loads(raw)
     if body.get('operation') not in OPERATIONS: return JSONResponse({'detail':'unknown operation'},status_code=400)
-    missing=[name for name in REQUIRED_STORAGE if not os.getenv(name)]
+    missing=[] if body.get('storage_proxy') else [name for name in REQUIRED_STORAGE if not os.getenv(name)]
     if missing:
         return JSONResponse({'detail':'engineering 缺少私有文件存储配置：'+', '.join(missing),
                              'code':'NATIVE_STORAGE_CONFIG_MISSING'},status_code=503)
@@ -133,7 +137,7 @@ async def execute(request:Request):
                 code,detail='NATIVE_INPUT_NOT_FOUND','工程输入文件不存在或已过期'
             elif isinstance(exc, KeyError) and exc.args and str(exc.args[0]).startswith('SUPABASE_'):
                 code,detail='NATIVE_STORAGE_CONFIG_MISSING','engineering 缺少 Supabase 存储环境变量'
-            elif '私有文件存储失败' in str(exc):
+            elif '私有文件存储失败' in str(exc) or '私有文件代理失败' in str(exc):
                 code,detail='NATIVE_STORAGE_ACCESS_FAILED','engineering 无法读写 Supabase 私有文件，请检查 URL、Secret Key 和 Storage Bucket'
             elif isinstance(exc,NativeJobError):
                 code='NATIVE_OPERATION_FAILED'

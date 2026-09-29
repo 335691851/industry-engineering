@@ -27,8 +27,15 @@ def call(operation, args, kwargs):
     payload.write_text(json.dumps({'args':encode(args),'kwargs':encode(kwargs)},ensure_ascii=False),encoding='utf-8')
     headers={'Authorization':'Bearer '+os.environ['ENGINEERING_SERVICE_TOKEN'],'X-Engineering-Owner':owner()}
     if os.getenv('ENGINEERING_NATIVE_BYPASS'): headers['x-vercel-protection-bypass']=os.environ['ENGINEERING_NATIVE_BYPASS']
+    proxy_base = (os.getenv('ENGINEERING_STORAGE_PROXY_URL') or
+                  os.getenv('VERCEL_PROJECT_PRODUCTION_URL') or os.getenv('VERCEL_URL') or '').rstrip('/')
+    if proxy_base and not proxy_base.startswith(('http://', 'https://')):
+        proxy_base = 'https://' + proxy_base
+    request_body={'operation':operation,'input':publish(payload)}
+    if proxy_base:
+        request_body['storage_proxy']=proxy_base + '/api/internal/native-storage'
     response=httpx.post(os.environ['ENGINEERING_NATIVE_URL'].rstrip('/')+'/execute',
-        headers=headers,json={'operation':operation,'input':publish(payload)},timeout=115)
+        headers=headers,json=request_body,timeout=115)
     if not response.is_success:
         try:
             failure = response.json()

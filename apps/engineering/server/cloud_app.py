@@ -12,7 +12,7 @@ import tempfile
 
 import httpx
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, Response
 from starlette.concurrency import run_in_threadpool
 
 from .cloud_context import owner_id, workspace, owner
@@ -115,6 +115,28 @@ class CloudApplication:
             owner_id.set(data['ownerId'])
             await run_in_threadpool(cloud_tasks.dispatch,data['taskId'])
             return JSONResponse({'dispatched':True})
+        if path == '/api/internal/native-storage' and request.method in ('GET', 'POST'):
+            secret = os.getenv('ENGINEERING_SERVICE_TOKEN', '')
+            supplied = request.headers.get('Authorization', '')
+            user = request.headers.get('X-Engineering-Owner', '')
+            if len(secret) < 32 or not hmac.compare_digest(supplied.encode(), ('Bearer ' + secret).encode()) or not UUID.fullmatch(user):
+                return JSONResponse({'detail':'unauthorized'},status_code=401)
+            key = request.query_params.get('key', '')
+            if not key.startswith(user + '/') or '..' in key.split('/'):
+                return JSONResponse({'detail':'invalid object key'},status_code=400)
+            owner_id.set(user)
+            from .cloud_storage import request as storage_request
+            if request.method == 'GET':
+                try:
+                    content = await run_in_threadpool(storage_request, 'GET', key)
+                except FileNotFoundError:
+                    return JSONResponse({'detail':'not found'},status_code=404)
+                return Response(content, media_type='application/octet-stream')
+            content = await request.body()
+            if len(content) > 32 * 1024 * 1024:
+                return JSONResponse({'detail':'request too large'},status_code=413)
+            await run_in_threadpool(storage_request, 'POST', key, content)
+            return JSONResponse({'stored':True})
         if not path.startswith('/api/'):
             return JSONResponse({'detail': '前端由 Vercel 提供'}, status_code=404)
         internal = path.startswith('/api/internal/tasks/')

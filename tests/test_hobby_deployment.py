@@ -64,6 +64,27 @@ def test_native_storage_rpc_and_tenant_isolation(monkeypatch,tmp_path):
     finally: workspace.reset(work); owner_id.reset(who)
 
 
+def test_engineering_storage_proxy_uses_service_token(monkeypatch, tmp_path):
+    import httpx
+    calls = []
+    monkeypatch.setenv('ENGINEERING_SERVICE_TOKEN', 's' * 32)
+    def request(method, url, **kwargs):
+        calls.append((method, url, kwargs))
+        return httpx.Response(200, content=b'payload', request=httpx.Request(method, url))
+    monkeypatch.setattr(cloud_storage.httpx, 'request', request)
+    who=owner_id.set(USER); work=workspace.set(tmp_path)
+    proxy=cloud_storage.storage_proxy.set('https://agent.example/api/internal/native-storage')
+    try:
+        assert cloud_storage.request('GET', USER + '/rpc/input.json') == b'payload'
+        method, url, kwargs = calls[0]
+        assert method == 'GET' and url.endswith('/api/internal/native-storage')
+        assert kwargs['params']['key'] == USER + '/rpc/input.json'
+        assert kwargs['headers']['Authorization'] == 'Bearer ' + 's' * 32
+        assert kwargs['headers']['X-Engineering-Owner'] == USER
+    finally:
+        cloud_storage.storage_proxy.reset(proxy); workspace.reset(work); owner_id.reset(who)
+
+
 def test_pdf_page_falls_back_locally_but_cad_remains_strict(monkeypatch):
     monkeypatch.setenv('ENGINEERING_NATIVE_URL','https://native.test')
     monkeypatch.delenv('ENGINEERING_SERVICE_ROLE',raising=False)

@@ -88,6 +88,25 @@ def test_cloud_auth_csrf_tenant_context_and_async_generation(monkeypatch):
     assert client.post('/api/internal/tasks/abcdef123456').status_code == 401
 
 
+def test_native_storage_proxy_requires_service_identity(monkeypatch):
+    monkeypatch.setenv('ENGINEERING_SERVICE_TOKEN', 'x' * 32)
+    calls = []
+    def storage(method, key, content=None):
+        calls.append((method, key, content, owner()))
+        return b'engineering-data' if method == 'GET' else b''
+    monkeypatch.setattr(cloud_storage, 'request', storage)
+    client = TestClient(CloudApplication(Starlette()))
+    path = '/api/internal/native-storage?key=' + USER + '/rpc/file.json'
+    assert client.get(path).status_code == 401
+    headers = {'Authorization': 'Bearer ' + 'x' * 32, 'X-Engineering-Owner': USER}
+    response = client.get(path, headers=headers)
+    assert response.content == b'engineering-data'
+    response = client.post(path, headers=headers, content=b'generated')
+    assert response.status_code == 200
+    assert calls == [('GET', USER + '/rpc/file.json', None, USER),
+                     ('POST', USER + '/rpc/file.json', b'generated', USER)]
+
+
 def test_cloud_dispatch_keeps_outbox_on_network_failure(monkeypatch):
     class Connection:
         def __enter__(self): return self
