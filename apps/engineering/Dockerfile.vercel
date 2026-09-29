@@ -17,7 +17,7 @@ COPY --from=libredwg /opt/libredwg /opt/libredwg
 ENV LIBREDWG_BIN=/opt/libredwg/bin LIBREDWG_TIMEOUT_SECONDS=15
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 ENGINEERING_RUNTIME=cloud ENGINEERING_SERVICE_ROLE=engineering PORT=80 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 QT_QPA_PLATFORM=offscreen
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 libgomp1 fonts-wqy-zenhei \
+    libglib2.0-0 libgomp1 libgl1 libx11-6 libxext6 libxrender1 fonts-wqy-zenhei \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY requirements-native.txt ./
@@ -26,6 +26,7 @@ RUN pip install --no-cache-dir -r requirements-native.txt \
     && find /usr/local/lib/python3.12/site-packages -type d \
        \( -name tests -o -name test \) -prune -exec rm -rf '{}' + \
     && find /usr/local/lib/python3.12/site-packages -type d -name __pycache__ -prune -exec rm -rf '{}' +
+RUN python -c "from OCP.BRepPrimAPI import BRepPrimAPI_MakeCylinder; assert not BRepPrimAPI_MakeCylinder(10, 30).Shape().IsNull()"
 COPY server ./server
 RUN python -c "import server.native_entry; import server.cad_artifacts; import server.evidence"
 COPY scripts/cloud_native_smoke.py ./scripts/cloud_native_smoke.py
