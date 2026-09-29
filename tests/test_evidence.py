@@ -41,3 +41,12 @@ def test_grounding_does_not_accept_invented_or_wrong_page_citations():
     assert any('inner_diameter_mm' in e for e in geometry_blockers(result))
     result['user_overrides'] = {'inner_diameter_mm':150}
     assert not geometry_blockers(result)
+
+
+def test_grounding_normalizes_common_chamfer_ocr_confusion():
+    from server.evidence import ground_dimensions
+    packet = {'sha256':'hash','pages':[{'page':1,'tokens':[
+        {'id':'p1-t1','text':'CO. 5', 'bbox':[1,2,3,4], 'method':'rapidocr', 'confidence':.8}]}]}
+    result = ground_dimensions({'chamfer_mm':.5, 'dimension_evidence':{
+        'chamfer_mm':{'page':1, 'token_ids':['p1-t1']}}}, packet)
+    assert result['dimension_evidence']['chamfer_mm']['checks'] == []

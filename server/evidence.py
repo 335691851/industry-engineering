@@ -178,7 +178,15 @@ def ground_dimensions(result, packet):
             issues.append('引用页码与实际位置不一致')
         value = dimension_value(result, field)
         if isinstance(value, (int,float)) and not isinstance(value,bool) and refs:
-            numbers = [float(n) for r in refs for n in re.findall(r'\d+(?:\.\d+)?',r['text'])]
+            numbers = []
+            for ref in refs:
+                # Common drawing OCR confusion: chamfer prefix C0.5 is often
+                # read as CO.5.  Correct only an O in a numeric feature prefix,
+                # preserving the strict numeric evidence check elsewhere.
+                normalized = str(ref['text']).translate(str.maketrans({'，':'.', '。':'.'}))
+                normalized = re.sub(r'(?i)(?<=[CRΦØ⌀])O(?=[.\d])', '0', normalized)
+                normalized = re.sub(r'(?<=\d)\.\s+(?=\d)', '.', normalized)
+                numbers.extend(float(n) for n in re.findall(r'(?<!\d)(?:\d+(?:\.\d+)?|\.\d+)', normalized))
             if not any(abs(n-value)<.0001 for n in numbers):
                 issues.append('数值未在引用文字中匹配，须核对局部图或推算依据')
         item['checks'] = issues

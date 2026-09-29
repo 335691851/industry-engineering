@@ -50,6 +50,16 @@ def prepare_manufacturing(geometry):
         stock = item.get('per_side_mm')
         faces = item.get('faces', 2)
         kind = item.get('kind')
+        # Diameter stock is a radial, per-side value.  Models sometimes report
+        # ``faces=1`` because the drawing shows one radius; the blank diameter
+        # still changes by two radial allowances.  Normalize that semantic
+        # representation here instead of rejecting an otherwise traceable
+        # calculation.  Values outside the schema remain hard errors.
+        if kind in {'external', 'bore'} and faces == 1:
+            item['input_faces'] = 1
+            faces = 2
+            item['faces'] = 2
+            item['normalization'] = '直径单边余量按两侧径向计入毛坯直径'
         item['finished_mm'] = nominal
         item['blank_mm'] = None
         item['calculation'] = ''

@@ -1,0 +1,38 @@
+{
+  "case_id": "sample-reel-business-v1",
+  "source": "用户提供的收卷轴装配体及历史交付成果",
+  "source_sha256": "c42a10979ff7faf133768d2acbad17c8cb2eaa4fed3209ca3692c39487e10003",
+  "scope": "验证 MBOM 层级、辊筒关键交付尺寸及总装核心工艺覆盖；数据只用于验收，不注入生产 Agent",
+  "mbom": {
+    "parts": [
+      {"name": "轴头1", "kind": "部件", "parent": null},
+      {"name": "轴头2", "kind": "部件", "parent": null},
+      {"name": "辊筒", "kind": "零件", "parent": null},
+      {"name": "轴头1-轴", "kind": "零件", "parent": "轴头1"},
+      {"name": "闷板1", "kind": "零件", "parent": "轴头1"},
+      {"name": "轴头2-轴", "kind": "零件", "parent": "轴头2"},
+      {"name": "闷板2", "kind": "零件", "parent": "轴头2"}
+    ]
+  },
+  "drawing_cases": {
+    "辊筒": {
+      "case_id": "sample-tube-delivery-v1",
+      "expected": {
+        "shape_type": "tube",
+        "outer_diameter_mm": 154,
+        "inner_diameter_mm": 125,
+        "overall_length_mm": 1554,
+        "outer_reference": true,
+        "inner_tolerance": "+0.04/0",
+        "chamfer_mm": 0.5
+      },
+      "zones": [
+        {"end": "left", "length_mm": 270},
+        {"end": "right", "length_mm": 270}
+      ]
+    }
+  },
+  "assembly_process": {
+    "required_operations": ["热装", "焊接", "车", "静平衡", "磨", "抛光", "铣", "成品检验", "入库"]
+  }
+}

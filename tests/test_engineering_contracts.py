@@ -51,6 +51,19 @@ def test_allowance_direction_provenance_and_finite_values():
     assert geometry_blockers(g)
 
 
+def test_radial_allowance_single_face_is_normalized_to_diameter_math():
+    g = tube()
+    g['manufacturing'] = {'allowances': [
+        {'dimension': 'outer_diameter_mm', 'kind': 'external', 'per_side_mm': 2.5,
+         'faces': 1, 'basis': '参考图毛坯', 'reason': '外圆精加工'},
+        {'dimension': 'inner_diameter_mm', 'kind': 'bore', 'per_side_mm': 1,
+         'faces': 1, 'basis': '参考图毛坯', 'reason': '内孔精加工'}]}
+    allowances = prepare_manufacturing(g)['manufacturing']['allowances']
+    assert [(a['faces'], a['blank_mm']) for a in allowances] == [(2, 55), (2, 28)]
+    assert all(a['input_faces'] == 1 and a['normalization'] for a in allowances)
+    assert not geometry_blockers(g)
+
+
 @pytest.fixture
 def project(tmp_path, monkeypatch):
     monkeypatch.setattr(db, 'DB', tmp_path / 'db.sqlite')
@@ -100,6 +113,19 @@ def test_invalid_geometry_cannot_be_approved(project):
         client.patch('/api/parts/leaf', json={'geometry':{**tube(), 'inner_diameter_mm':100}})
         response = client.post('/api/parts/leaf/approve/drawing', json={})
         assert response.status_code == 409
+
+
+def test_blank_reference_retry_preserves_existing_uploaded_source(project, tmp_path):
+    source = tmp_path / 'approved-reference.pdf'
+    source.write_bytes(b'%PDF-existing-reference')
+    with db.connect() as con:
+        con.execute('UPDATE parts SET source_pdf=? WHERE id=?', (str(source), 'leaf'))
+    with TestClient(main.app) as client:
+        response = client.post('/api/parts/leaf/approve/reference', json={'reference_id': ''})
+        assert response.status_code == 200, response.text
+        part = main.require_part('leaf')
+        assert part['source_pdf'] == str(source)
+        assert part['specifications']['reference_approval']['status'] == 'approved'
 
 
 def test_repeated_approval_preserves_downstream_and_exports_reviewed_state(project, monkeypatch):

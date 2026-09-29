@@ -332,13 +332,6 @@ def analyze(project_id: str):
     if plan.get('audit_note') and '需人工复核' in plan['audit_note']:
         analysis.setdefault('review_items', []).append(plan['audit_note'])
     analysis.setdefault('review_items', []).append('MBOM 装配关系为工程草案；复用位置、每上级用量和材料需根据正式图纸复核。')
-    sample_folder = ROOT / 'sample' / '示例' / '输出' / '拆解的部件图'
-    sample_files = {
-        '轴头1': '收卷轴-轴头1.pdf', '轴头2': '收卷轴-轴头2.pdf',
-        '辊筒': '收卷轴-辊筒.pdf', '轴头1-轴': '收卷轴-轴头1-轴.pdf',
-        '轴头2-轴': '收卷轴-轴头2-轴.pdf',
-        '闷板1': '收卷轴-轴头-闷板1.pdf', '闷板2': '收卷轴-轴头-闷板2.pdf',
-    }
     with connect() as con:
         con.execute('DELETE FROM mbom_links WHERE project_id=?', (project_id,))
         con.execute('DELETE FROM parts WHERE project_id=?', (project_id,))
@@ -353,7 +346,6 @@ def analyze(project_id: str):
             part_id = identifiers[item['key']]
             link = first_link[item['key']]
             parent_id = identifiers.get(link['parent_key']) if link['parent_key'] else None
-            reference_path = sample_folder / sample_files.get(part_name, '')
             source_pdf = ''  # Reference input is selected and approved by the engineer.
             con.execute('INSERT INTO parts (id,project_id,parent_id,name,drawing_no,kind,material,status,specifications,geometry,process,source_pdf,drawing_pdf,drawing_dxf,drawing_dwg,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
                         (part_id, project_id, parent_id, part_name, str(item.get('drawing_no') or '')[:80],
@@ -720,10 +712,18 @@ def approve_part_stage(part_id: str, stage: str, body: ApprovalRequest):
         ready, children = children_ready(project, part_id)
         if not ready:
             raise HTTPException(409, '请先审核通过直接下级工艺：' + '、'.join(p['name'] for p in children if not process_approved(p)))
-        path, label = resolve_reference_file(body.reference_id, part_id)
+        approved_reference_id = body.reference_id
+        if not approved_reference_id and part.get('source_pdf'):
+            # A blank retry must not discard an already uploaded/selected
+            # engineering reference.  Explicit removal is a separate edit.
+            path = part['source_pdf']
+            approved_reference_id = reference.get('reference_id') or ''
+            label = reference.get('label') or Path(path).name
+        else:
+            path, label = resolve_reference_file(approved_reference_id, part_id)
         specifications = dict(part.get('specifications') or {})
         specifications['reference_approval'] = {
-            'status': APPROVED, 'approved_at': timestamp, 'reference_id': body.reference_id,
+            'status': APPROVED, 'approved_at': timestamp, 'reference_id': approved_reference_id,
             'label': label, 'note': body.note[:300]
         }
         geometry = pending_geometry(part.get('geometry'))

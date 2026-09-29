@@ -431,12 +431,12 @@ platform 配置 ENGINEERING_BACKEND_URL 指向 agent-api，必要时设置 ENGIN
 | CAD/DWG | test_cad_studio、test_dwg_converter | 保存差异、转换错误和支持范围检查 |
 | 云端与恢复 | test_cloud_backend、test_cloud_compute、test_vercel_uploads、test_hobby_deployment | 用户隔离、上传、活动续跑和模拟工具调用 |
 | 前端代理 | apps/platform/tests | 代理、Cookie、内部路由与服务鉴权 |
-| 案例数值 | scripts/evaluate_engineering.py + tests/fixtures/tube_case.json | 特定案例字段、尺寸、加工区命中 |
+| 案例业务基线 | scripts/evaluate_engineering.py + tests/fixtures/tube_case.json、assembly_case.json | MBOM 层级、辊筒交付尺寸、加工区与总装核心工序命中 |
 | 集成试跑 | scripts/benchmark_pipeline.py、scripts/smoke_hobby_workflow.py、scripts/cloud_native_smoke.py | 按脚本范围验证模型链/调度/原生运行依赖 |
 
 案例评价器不被生产生成代码导入；案例答案用来评分，不注入生成提示词。数值命中仍不能替代图面、视图、剖切、标注清晰度、工艺路线和交付状态的工程验收。
 
-本次仅重整说明并核对源码，不重新宣称历史测试数、真实模型质量或云端调用成功。用户已报告两个后端部署完成，但公开入口受部署保护；需要 platform、Auth、数据库初始化、私有文件、真实模型、CAD 导出及审核续跑联通后，才能认为完整云端上线。
+本次使用用户提供的收卷轴装配图、7 张历史部件图和工艺卡执行了本地真实模型链路。辊筒识别得到空心筒体边界、φ154/φ125/1554、两端 270 加工区及放量计算，通过图纸门禁后生成并审核了工艺卡；案例评价为 25/25。轴头参考图首次识别漏掉左端 166 mm 轴段，尺寸链门禁按设计阻断，没有自动补造。这证明证据、生成、门禁和人工修正链路有效，不代表所有复杂图纸已可无人审核通过。云端三项目仍需在最新提交部署后复测上传、任务续跑和文件下载。
 
 ## 15. 当前缺口与后续优先级
 

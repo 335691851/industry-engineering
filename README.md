@@ -79,6 +79,8 @@ python scripts/check_hobby_bundle.py
 
 GitHub Actions 还会构建两个 Linux 容器，并在工程容器内执行原生依赖 smoke test。案例评分脚本位于 `scripts/evaluate_engineering.py`，测试基线位于 `tests/fixtures/`；这些数据仅用于验收，不会注入生产 Agent。
 
+真实收卷轴案例包含两层 MBOM、辊筒关键交付尺寸和总装核心工艺的独立验收配置。若本机安装了用户提供的 `sample/示例` 文件，运行 `python -m pytest tests/test_sample_acceptance.py -q` 还会核对原始文件哈希、PDF 可读性、7 张部件图和工艺卡内容；CI 在没有业务附件时仍验证同一验收器的结构和判定逻辑。
+
 ## 目录
 
 | 目录 | 用途 |

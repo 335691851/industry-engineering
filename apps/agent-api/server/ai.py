@@ -192,6 +192,36 @@ segments 必须描述沿轴线从左至右的所有外圆台阶，只有轮廓�
             result['dimension_evidence'] = {**(refs if isinstance(refs,dict) else {}), **located['dimension_evidence']}
     from .evidence import ground_dimensions
     result = ground_dimensions(result, evidence_packet)
+    if result.get('shape_type') == 'rotational' and isinstance(result.get('overall_length_mm'), (int, float)):
+        spans = result.get('segments') or []
+        complete = spans and all(isinstance(s.get('length_mm'), (int, float)) and
+                                 isinstance(s.get('diameter_mm'), (int, float)) and
+                                 s['length_mm'] > 0 and s['diameter_mm'] > 0 for s in spans)
+        closed = complete and abs(sum(s['length_mm'] for s in spans) - result['overall_length_mm']) <= .05
+        if not closed:
+            # Re-read only the axial profile when the first visual pass cannot
+            # satisfy a deterministic dimension-chain check.  This is a second
+            # evidence extraction pass, not a geometric repair: an unresolved
+            # span stays null and the approval gate remains blocked.
+            repair_prompt = f'''复核当前回转零件从左到右的完整外轮廓尺寸链。总长为 {result.get("overall_length_mm")} mm，
+当前候选 segments={json.dumps(spans, ensure_ascii=False)}，未通过“分段长度之和等于总长”的程序校核。
+重新查看图像和证据包，逐个识别所有可见台阶段，不得省略首尾段，不得把累计尺寸当作分段尺寸。
+只有轮廓边界明确且恰好一个段长未直接标注时，才可用总长减其余已确认分段进行差值推算，并将 basis 写为“差值推算”；
+否则该段 length_mm 或 diameter_mm 保持 null。不要修改总长，也不要补造看不见的结构。
+输出 JSON：{{"segments":[{{"length_mm":数值或null,"diameter_mm":数值或null,"length_tolerance":"","diameter_tolerance":"","fit":"","surface_roughness":"","basis":"图纸标注/差值推算/待确认","note":""}}],
+"dimension_evidence":{{"segments.0.length_mm":{{"token_ids":[],"page":1,"raw_text":"","state":"part_delivery"}}}},"review_items":[""]}}。
+证据包：{json.dumps(evidence_packet, ensure_ascii=False)}'''
+            repaired = completion_json(ENGINEERING_RULES, repair_prompt, images, max_tokens=3200)
+            repaired_spans = repaired.get('segments')
+            if isinstance(repaired_spans, list) and repaired_spans:
+                result['segments'] = repaired_spans
+                if isinstance(repaired.get('dimension_evidence'), dict):
+                    retained = {k:v for k,v in (result.get('dimension_evidence') or {}).items()
+                                if not k.startswith('segments.')}
+                    result['dimension_evidence'] = {**retained, **repaired['dimension_evidence']}
+                result['review_items'] = list(dict.fromkeys((result.get('review_items') or []) +
+                                                            (repaired.get('review_items') or [])))
+                result = ground_dimensions(result, evidence_packet)
     result['evidence_summary'] = {'sha256': evidence_packet['sha256'], 'file': evidence_packet['file'],
                                   'warnings': evidence_packet['warnings'], 'page_count': len(evidence_packet['pages'])}
     return result
