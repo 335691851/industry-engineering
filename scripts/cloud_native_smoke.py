@@ -12,7 +12,7 @@ def check():
     from server.cad_kernel import validate_solid
     solid = validate_solid({'shape_type':'tube','outer_diameter_mm':20,
                             'inner_diameter_mm':10,'overall_length_mm':30})
-    assert solid['status'] == 'valid' and solid['bounding_box_mm'] == [20,20,30]
+    assert solid['status'] == 'valid' and solid['bounding_box_mm'] == [20,20,30], solid
     engine = RapidOCR()
     assert engine is not None
     with tempfile.TemporaryDirectory() as folder:
