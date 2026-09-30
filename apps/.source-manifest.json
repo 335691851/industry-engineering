@@ -1,7 +1,7 @@
 {
   "apps/agent-api/server/__init__.py": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
-  "apps/agent-api/server/agent.py": "04d71f5345570f72fbd37979e0d9cb5a7fadc59e45c69f8624e4e209d6b482ab",
-  "apps/agent-api/server/ai.py": "3e8a2836fc1722044f6de8845a6403981ad26d5f4da5c94910afcf8a163cfc99",
+  "apps/agent-api/server/agent.py": "586eeedbf7afb07b6f119569e446fba8e83117cfcac66373bd11971f9dc650dc",
+  "apps/agent-api/server/ai.py": "17c9d8d6fe5bf3179e70d4117f6a8f98819e92134c3b4bf00d307a096d6a9963",
   "apps/agent-api/server/cad_artifacts.py": "31751df6dd8c38fb46b5285f8b46e5448ec4af307d140695e6801d963afc1215",
   "apps/agent-api/server/cad_editor.py": "e4910bf5b86cbc742157181951383776d41e9cf194bbf05013695e5242c28ebe",
   "apps/agent-api/server/cad_import.py": "e20c4217be196699492cde08bdec6875779664cfd30596b7b9faa8678fd7062f",
@@ -23,7 +23,7 @@
   "apps/agent-api/server/cloud_uploads.py": "953815b8c88b8a3a046640fb39f9e24e0c1e01e969cc5a5c8351f91db61856e6",
   "apps/agent-api/server/data_reset.py": "27dbcea02c6b5fbc6f680dc15b8f5259d90261b1dda3a8cac416a9e47aa237ef",
   "apps/agent-api/server/db.py": "239aa8270659ac59fef8060b59020d79fc98db8c8f4d48a9987e098c6571dbb5",
-  "apps/agent-api/server/domain.py": "f13180dde6a1ca96e5ca23b3cf51272e9565675f98805455f73829d8861cd774",
+  "apps/agent-api/server/domain.py": "65c852b6458afb5cd55d7619154a4f499b8562e2f98df21cd36506e6726edb1d",
   "apps/agent-api/server/drawing.py": "9995c76b751d22b72cbef970fc9ad16954d265070eb63197bc3bc3bca926210d",
   "apps/agent-api/server/drawing_iso.py": "6fb5578e77063c2ee6e236d9a3fb7ae878f588546cdecde91b0325e9154891d8",
   "apps/agent-api/server/drawing_standard.py": "8f6bcf8b821893995142f96a8c982dab30749362e92de6f72c12e8fc1e09899d",

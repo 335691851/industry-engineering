@@ -1,6 +1,7 @@
 from server.engineering_context import build_generation_context
 from server.evidence import ground_dimensions
 from server.manufacturing import geometry_blockers
+from server.domain import complete_candidate_geometry
 from server.workflow import workflow_state
 
 
@@ -78,3 +79,44 @@ def test_incomplete_derivation_remains_a_hard_review_blocker():
     }
     grounded = ground_dimensions(geometry, {'sha256': 'x', 'pages': []})
     assert geometry_blockers(grounded)
+
+
+def test_empty_tube_draft_becomes_traceable_drawable_candidate():
+    part = {'id': 'roller', 'name': '辊筒', 'kind': '零件', 'geometry': {}}
+    project = {
+        'analysis': {'dimensions': [
+            {'label': '辊筒外径', 'value': 'Φ150±0.2'},
+            {'label': '辊筒长度', 'value': '1550'},
+        ]}
+    }
+    result = complete_candidate_geometry({}, part, project)
+    assert result['shape_type'] == 'tube'
+    assert result['outer_diameter_mm'] == 150
+    assert result['overall_length_mm'] == 1550
+    assert 0 < result['inner_diameter_mm'] < result['outer_diameter_mm']
+    assert result['candidate_inference']['status'] == 'provisional'
+    assert result['dimension_evidence']['inner_diameter_mm']['method'] == 'derived'
+    assert not geometry_blockers({**result, 'manufacturing': {}})
+    assert any('可编辑工程候选' in item for item in result['review_items'])
+
+
+def test_approved_same_name_history_precedes_generic_template():
+    part = {'id': 'plate', 'name': '闷板', 'kind': '零件', 'geometry': {}}
+    history = [{'name': '闷板', 'geometry': {
+        'shape_type': 'plate', 'outer_diameter_mm': 130,
+        'inner_diameter_mm': 60, 'thickness_mm': 30,
+        'approval_status': 'approved',
+    }}]
+    result = complete_candidate_geometry({}, part, {'analysis': {}}, history)
+    assert (result['outer_diameter_mm'], result['inner_diameter_mm'], result['thickness_mm']) == (130, 60, 30)
+    assert result['confidence'] != '低'
+    assert not geometry_blockers({**result, 'manufacturing': {}})
+
+
+def test_unknown_rotational_part_gets_editable_baseline_not_blank_sheet():
+    result = complete_candidate_geometry({}, {'name': '传动轴', 'kind': '零件'}, {'analysis': {}})
+    assert result['shape_type'] == 'rotational'
+    assert result['segments'][0]['length_mm'] > 0
+    assert result['segments'][0]['diameter_mm'] > 0
+    assert result['overall_length_mm'] == result['segments'][0]['length_mm']
+    assert not geometry_blockers({**result, 'manufacturing': {}})

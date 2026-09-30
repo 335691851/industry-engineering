@@ -12,7 +12,8 @@ from .cloud_activity import commit_activity
 
 from . import ai
 from .db import DATA, add_message, connect, now, project_bundle, row, unpack
-from .domain import check_geometry, check_process, complete_draft_geometry, normalize_material
+from .domain import (check_geometry, check_process, complete_candidate_geometry,
+                     complete_draft_geometry, normalize_material)
 from .drawing import export_drawing, export_process_pdf, export_process_xlsx
 from .engineering_skills import prompt_block
 from .memory import retrieve
@@ -64,6 +65,15 @@ def _commit_part_drawing(project, part, instruction):
     overrides = dict((part.get('geometry') or {}).get('user_overrides') or {})
     draft.update(overrides)
     draft['user_overrides'] = overrides
+    # The model is allowed to be cautious, but the drawing surface must not
+    # collapse to an empty placeholder.  Use approved same-name history and
+    # assembly constraints to create an explicitly provisional, editable
+    # outline; the normal human approval gate still applies.
+    with connect() as con:
+        history = [unpack(dict(item)) for item in con.execute(
+            'SELECT id,project_id,name,kind,geometry,updated_at FROM parts WHERE name=? AND id<>? ORDER BY updated_at DESC',
+            (part.get('name', ''), part['id'])).fetchall()]
+    draft = complete_candidate_geometry(draft, part, project, history)
     geometry = pending_geometry(check_geometry(complete_draft_geometry(draft, part)))
     material = normalize_material(part['material'] or geometry.get('material'))
     process = pending_process(part.get('process'))
